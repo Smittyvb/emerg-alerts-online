@@ -1,0 +1,13 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "Backend server for the AlertReady frontend",
+  "main": "index.js",
+  "author": "Smittyvb",
+  "license": "Apache-2.0",
+  "private": true,
+  "dependencies": {
+    "express": "^4.17.1",
+    "ws": "^7.2.1"
+  }
+}
