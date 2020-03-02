@@ -97,45 +97,53 @@ update msg model =
 -- VIEW
 
 
+websiteName: String
+websiteName = "alerts.test"
+
 viewLink : String -> String -> Html msg
 viewLink name path =
-    a [ href path ] [ text name ]
-
+    a [ href path, class "header-link" ] [ text name ]
 
 headerEle : Model -> Html Msg
 headerEle model =
     header []
-        [ h1 []
-            [ text "AlertReady viewer"
+        [ h1 [ id "header-title" ]
+            [ viewLink websiteName "/"
             ]
-        , viewLink "Home" "/"
         , viewLink "FAQ" "/faq"
         , viewLink "About" "/about"
         ]
 
 type Route
-    = Home
+    = Search String
     | About
     | Faq
-    | SpecificAlert String
-    | NotFound
 
 route : Parser (Route -> a) a
 route =
   oneOf
-    [ Parser.map Home (Parser.s "home")
+    [ Parser.map (Search "") top
+    , Parser.map Search (Parser.s "search" </> Parser.string)
     , Parser.map About (Parser.s "about")
-    , Parser.map Faq (Parser.s "Faq")
-    , Parser.map SpecificAlert (Parser.s "alert" </> Parser.string)
+    , Parser.map Faq (Parser.s "faq")
+    , Parser.map Search (Parser.s "alert" </> Parser.string)
     ]
 
 view : Model -> Browser.Document Msg
 view model =
     { title = "AlertReady viewer"
     , body =
-        [ div []
+        [ div [ class "elm-root" ]
             [ headerEle model
             
-        , div [] [ text (Url.toString model.url) ]
+        , case Parser.parse route model.url of
+            Just About ->
+                text "About"
+            Just Faq ->
+                text "FAQ"
+            Just (Search search) ->
+                text ("Search: " ++ search)
+            Nothing ->
+                text "Not found"
         ]]
     }
