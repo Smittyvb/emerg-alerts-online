@@ -7,7 +7,8 @@ import Html.Attributes exposing (..)
 import Html.Events exposing (onClick)
 import Platform.Cmd exposing (..)
 import Url
-import Url.Parser as Parser exposing (Parser, oneOf, s, map, top, (</>))
+import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
+
 
 
 -- MAIN
@@ -39,7 +40,9 @@ subscriptions _ =
 
 
 type alias Alert =
-    {}
+    { rawXml : String
+    , title : String
+    }
 
 
 type ConnectionStatus
@@ -97,12 +100,15 @@ update msg model =
 -- VIEW
 
 
-websiteName: String
-websiteName = "alerts.test"
+websiteName : String
+websiteName =
+    "alerts.test"
+
 
 viewLink : String -> String -> Html msg
 viewLink name path =
     a [ href path, class "header-link" ] [ text name ]
+
 
 headerEle : Model -> Html Msg
 headerEle model =
@@ -114,20 +120,30 @@ headerEle model =
         , viewLink "About" "/about"
         ]
 
+
 type Route
     = Search String
     | About
     | Faq
 
+
 route : Parser (Route -> a) a
 route =
-  oneOf
-    [ Parser.map (Search "") top
-    , Parser.map Search (Parser.s "search" </> Parser.string)
-    , Parser.map About (Parser.s "about")
-    , Parser.map Faq (Parser.s "faq")
-    , Parser.map Search (Parser.s "alert" </> Parser.string)
-    ]
+    oneOf
+        [ Parser.map (Search "") top
+        , Parser.map Search (Parser.s "search" </> Parser.string)
+        , Parser.map About (Parser.s "about")
+        , Parser.map Faq (Parser.s "faq")
+        , Parser.map Search (Parser.s "alert" </> Parser.string)
+        ]
+
+
+alertDiv : Alert -> Html Msg
+alertDiv alert =
+    div [ class "alert" ] [ text alert.title ]
+
+subheader : String -> Html Msg
+subheader title = h2 [ class "subheader" ] [ text title ]
 
 view : Model -> Browser.Document Msg
 view model =
@@ -135,15 +151,22 @@ view model =
     , body =
         [ div [ class "elm-root" ]
             [ headerEle model
-            
-        , case Parser.parse route model.url of
-            Just About ->
-                text "About"
-            Just Faq ->
-                text "FAQ"
-            Just (Search search) ->
-                text ("Search: " ++ search)
-            Nothing ->
-                text "Not found"
-        ]]
+            , div []
+                (case Parser.parse route model.url of
+                    Just About ->
+                        [ subheader "About" ]
+
+                    Just Faq ->
+                        [ subheader "FAQ" ]
+
+                    Just (Search search) ->
+                        [ subheader ("Search: " ++ search)
+                        , alertDiv { rawXml = "", title = "Alert title" }
+                        ]
+
+                    Nothing ->
+                        [ subheader "Not found" ]
+                )
+            ]
+        ]
     }
