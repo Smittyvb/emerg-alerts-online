@@ -88,7 +88,7 @@ genSearchUrl search =
         "/"
 
     else
-        "search/" ++ search
+        "/search/" ++ search
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
@@ -155,7 +155,7 @@ route =
 
 alertDiv : Alert -> Html Msg
 alertDiv alert =
-    div [ class "alert" ] [ text alert.title ]
+    div [ class "alert" ] [ h3 [ class "alert-title"] [ text alert.title ] ]
 
 
 subheader : String -> Html Msg
@@ -163,13 +163,19 @@ subheader title =
     h2 [ class "subheader" ] [ text title ]
 
 
+alertFinderWidget : Model -> Html Msg
+alertFinderWidget model =
+    div [ class "alert-finder-widget" ]
+    [ 
+    ]
+
 view : Model -> Browser.Document Msg
 view model =
     { title = "AlertReady viewer"
     , body =
         [ div [ class "elm-root" ]
             [ headerEle model
-            , div []
+            , div [ id "content" ]
                 (case Parser.parse route model.url of
                     Just About ->
                         [ subheader "About" ]
@@ -178,8 +184,9 @@ view model =
                         [ subheader "FAQ" ]
 
                     Just (Search search) ->
-                        [ input [ value search, placeholder "Find an alert ID", onInput SearchChange ] []
+                        [ alertFinderWidget model
                         , alertDiv { rawXml = "", title = "Alert title" }
+                        , alertDiv { rawXml = "", title = "Another title" }
                         ]
 
                     Nothing ->
