@@ -4,7 +4,7 @@ import Browser
 import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes exposing (..)
-import Html.Events exposing (onClick)
+import Html.Events exposing (onClick, onInput)
 import Platform.Cmd exposing (..)
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
@@ -59,6 +59,7 @@ type alias Model =
     , lastUpdate : Int
     , key : Nav.Key
     , url : Url.Url
+    , search : String
     }
 
 
@@ -69,6 +70,7 @@ init flags url key =
       , lastUpdate = 0
       , key = key
       , url = url
+      , search = ""
       }
     , Cmd.none
     )
@@ -77,11 +79,24 @@ init flags url key =
 type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
+    | SearchChange String
+
+
+genSearchUrl : String -> String
+genSearchUrl search =
+    if search == "" then
+        "/"
+
+    else
+        "search/" ++ search
 
 
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        SearchChange search ->
+            ( model, Nav.pushUrl model.key (genSearchUrl search) )
+
         LinkClicked urlRequest ->
             case urlRequest of
                 Browser.Internal url ->
@@ -142,8 +157,11 @@ alertDiv : Alert -> Html Msg
 alertDiv alert =
     div [ class "alert" ] [ text alert.title ]
 
+
 subheader : String -> Html Msg
-subheader title = h2 [ class "subheader" ] [ text title ]
+subheader title =
+    h2 [ class "subheader" ] [ text title ]
+
 
 view : Model -> Browser.Document Msg
 view model =
@@ -160,7 +178,7 @@ view model =
                         [ subheader "FAQ" ]
 
                     Just (Search search) ->
-                        [ subheader ("Search: " ++ search)
+                        [ input [ value search, placeholder "Find an alert ID", onInput SearchChange ] []
                         , alertDiv { rawXml = "", title = "Alert title" }
                         ]
 
