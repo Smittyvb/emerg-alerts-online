@@ -5,6 +5,7 @@ import Browser.Navigation as Nav
 import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (onClick, onInput)
+import List
 import Platform.Cmd exposing (..)
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
@@ -39,9 +40,94 @@ subscriptions _ =
 -- MODEL
 
 
+type MsgClass
+    = Heartbeat
+    | SilentTest
+    | ActualAlert
+    | Unknown
+
+
+type MsgType
+    = Alert_
+    | Update
+    | Cancel
+    | Ack
+    | Error
+
+type MsgStatus
+    = Actual
+    | Exercise
+    | System
+    | Test
+    | Draft
+
+type MsgScope
+    = Public
+    -- really, we should only see Public alerts since all alerts are public in Canada
+    | Restricted
+    | Private
+
+type alias AlertResource =
+    { 
+    }
+
+type AlertInfoCategory
+    = Geo
+    | Met
+    | Safety
+    | Security
+    | Rescue
+    | Fire
+    | Health
+    | Env
+    | Transport
+    | Infra
+    | CBRNE
+    | Other
+
+type AlertInfoResponseType
+    = Shelter
+    | Evacuate
+    | Prepare
+    | Execute
+    | Avoid
+    | Monitor
+    | Assess
+    | AllClear
+    | None
+
+type AlertInfoUrgenncy
+    = Immediate
+    | Expected
+    | Future
+    | Past
+    | Unknown
+
+type alias AlertInfo =
+    { language : String -- language code, if one isn't specified the standard says it's "en-US"
+    , category : AlertInfoCategory
+    , event : String
+    , responseType : Maybe AlertInfoResponseType
+    , urgency : AlertInfoUrgenncy
+    }
+
+
 type alias Alert =
     { rawXml : String
-    , title : String
+    , id : String
+    , sender : String
+    , sent : String -- turn into date?
+    , status : MsgStatus
+    , msgType : String
+    , source : Maybe String
+    , scope : MsgScope
+    , code : List String
+    , references : Maybe String
+    , class : MsgClass
+    , addresses : Maybe String -- since everything is public *should* never exist
+    , restriction : Maybe String -- same as above
+    , note : Maybe String
+    , incidents : Maybe String
     }
 
 
@@ -66,7 +152,7 @@ type alias Model =
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     ( { alerts = []
-      , connectionStatus = Connected
+      , connectionStatus = Connecting
       , lastUpdate = 0
       , key = key
       , url = url
@@ -155,7 +241,7 @@ route =
 
 alertDiv : Alert -> Html Msg
 alertDiv alert =
-    div [ class "alert" ] [ h3 [ class "alert-title"] [ text alert.title ] ]
+    div [ class "alert" ] [ h3 [ class "alert-title" ] [ text "todo" ] ]
 
 
 subheader : String -> Html Msg
@@ -166,8 +252,36 @@ subheader title =
 alertFinderWidget : Model -> Html Msg
 alertFinderWidget model =
     div [ class "alert-finder-widget" ]
-    [ 
-    ]
+        []
+
+
+genAlertHtml : Alert -> Html Msg
+genAlertHtml alert =
+    div [] [ text "todo" ]
+
+
+connectionStatusEle : Model -> Html Msg
+connectionStatusEle model =
+    div [ class "connection-status" ]
+        [ text
+            (case model.connectionStatus of
+                Connecting ->
+                    "Connecting..."
+
+                Connected ->
+                    "Connected"
+
+                Delayed ->
+                    "Connected, but incoming messages may be delayed"
+
+                Reconnecting ->
+                    "Disconnected, reconnecting..."
+
+                Disconnected ->
+                    "Disconnected"
+            )
+        ]
+
 
 view : Model -> Browser.Document Msg
 view model =
@@ -184,10 +298,14 @@ view model =
                         [ subheader "FAQ" ]
 
                     Just (Search search) ->
-                        [ alertFinderWidget model
-                        , alertDiv { rawXml = "", title = "Alert title" }
-                        , alertDiv { rawXml = "", title = "Another title" }
-                        ]
+                        List.concat
+                            [ [ alertFinderWidget model ]
+                            , if List.length model.alerts == 0 then
+                                [ div [ class "no-alerts" ] [ text "No alerts found." ] ]
+
+                              else
+                                List.map genAlertHtml model.alerts
+                            ]
 
                     Nothing ->
                         [ subheader "Not found" ]
