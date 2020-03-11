@@ -1,4 +1,4 @@
-module Main exposing (..)
+port module Main exposing (..)
 
 import Browser
 import Browser.Navigation as Nav
@@ -9,11 +9,15 @@ import List
 import Platform.Cmd exposing (..)
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
+import Json.Decode as D
+import Json.Decode.Pipeline exposing (required, optional, hardcoded)
 
 
 
 -- MAIN
 
+
+port updateAlerts : (D.Value -> msg) -> Sub msg
 
 main : Program () Model Msg
 main =
@@ -32,19 +36,25 @@ main =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions _ =
-    Sub.none
+subscriptions model =
+    updateAlerts UpdateAlerts
 
 
 
 -- MODEL
 
 
+type alias KeyVal =
+    { valueName : String
+    , value : String
+    }
+
+
 type MsgClass
     = Heartbeat
     | SilentTest
     | ActualAlert
-    | Unknown
+    | UnknownType
 
 
 type MsgType
@@ -68,7 +78,21 @@ type MsgScope
     | Private
 
 type alias AlertResource =
-    { 
+    { resourceDescription : String
+    , mimeType : String
+    , size : Maybe Int
+    , uri : Maybe String
+    , derefUri : Maybe String
+    , digest : Maybe String
+    }
+
+type alias AlertArea =
+    { areaDesc : String
+    , polygon : Maybe String
+    , circle : Maybe String
+    , geocodes : List KeyVal
+    , altitude : Int
+    , ceiling : Int
     }
 
 type AlertInfoCategory
@@ -103,14 +127,52 @@ type AlertInfoUrgenncy
     | Past
     | Unknown
 
+type AlertInfoSeverity
+    = Extreme
+    | Severe
+    | Moderate
+    | Minor
+    | UnknownSeverity
+
+type AlertInfoCertainty
+    = Observed
+    -- For backward compatibility with CAP 1.0, the deprecated value of “Very Likely” SHOULD be
+    -- treated as equivalent to “Likely” -- spec
+    | Likely
+    | Possible
+    | Unlikely
+    | UnknownCertainty
+
 type alias AlertInfo =
     { language : String -- language code, if one isn't specified the standard says it's "en-US"
     , category : AlertInfoCategory
     , event : String
     , responseType : Maybe AlertInfoResponseType
     , urgency : AlertInfoUrgenncy
+    , severity : AlertInfoSeverity
+    , certainty : AlertInfoCertainty
+    , audience : Maybe String
+    , eventCodes: List KeyVal
+    , effective : Maybe String -- TODO: date
+    , onset : Maybe String -- TODO: date
+    , expires : Maybe String -- TODO: date
+    , senderName : Maybe String
+    , headline : Maybe String
+    , description : Maybe String
+    , instruction : Maybe String
+    , web : Maybe String
+    , contact : Maybe String
+    , parameters : List KeyVal
+    , resources : List AlertResource
+    , areas : List AlertArea
     }
 
+
+type alias Signature =
+    { digest : String
+    , signature : String
+    , valid : Bool
+    }
 
 type alias Alert =
     { rawXml : String
@@ -128,6 +190,8 @@ type alias Alert =
     , restriction : Maybe String -- same as above
     , note : Maybe String
     , incidents : Maybe String
+    , infos : List AlertInfo
+    , signatures : List Signature
     }
 
 
@@ -149,6 +213,11 @@ type alias Model =
     }
 
 
+alertDecoder : D.Decoder User
+alertDecoder =
+  D.succeed User
+    |> required "rawXml"
+
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     ( { alerts = []
@@ -166,6 +235,7 @@ type Msg
     = LinkClicked Browser.UrlRequest
     | UrlChanged Url.Url
     | SearchChange String
+    | UpdateAlerts D.Value
 
 
 genSearchUrl : String -> String
@@ -195,6 +265,10 @@ update msg model =
             ( { model | url = url }
             , Cmd.none
             )
+
+        UpdateAlerts alerts ->
+            ( model
+            , Cmd.none)
 
 
 
