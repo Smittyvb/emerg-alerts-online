@@ -152,7 +152,7 @@ type alias AlertInfo =
     , severity : AlertInfoSeverity
     , certainty : AlertInfoCertainty
     , audience : Maybe String
-    , eventCodes: List KeyVal
+    , eventCodes : List KeyVal
     , effective : Maybe String -- TODO: date
     , onset : Maybe String -- TODO: date
     , expires : Maybe String -- TODO: date
@@ -213,10 +213,11 @@ type alias Model =
     }
 
 
-alertDecoder : D.Decoder User
+{--alertDecoder : D.Decoder Alert
 alertDecoder =
   D.succeed User
     |> required "rawXml"
+--}
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =

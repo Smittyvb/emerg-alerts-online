@@ -63,18 +63,25 @@ function parseAlertJson(alert) {
   //console.log("pAJ", alert);
   let languageInfos = [];
   return {
-    // TODO: everything
     languageInfos,
     id: alert.identifier[0],
     sender: alert.sender[0],
-    sent: alert.sent[0],
+    sent: new Date(alert.sent[0]),
     status: alert.status[0],
     msgType: alert.msgType[0],
-    source: alert.source[0],
+    source: alert.source ? alert.source[0] : undefined,
     scope: alert.scope[0],
-    code: alert.code[0],
-    references: alert.references[0],
-    identifier: alert.identifier[0],
+    code: alert.code || [], // multiple are allowed
+    references: alert.references ? alert.references[0] : undefined,
+    class: "TODO",
+    addresses: alert.addresses ? alert.addresses[0] : undefined,
+    restriction: alert.restriction ? alert.restriction[0] : undefined,
+    note: alert.note ? alert.note[0] : undefined,
+    incidents: alert.incidents ? alert.incidents[0] : undefined,
+    infos: (alert.infos || []).map(info => ({
+      
+    })),
+    signatures: [], // TODO
   };
 }
 
@@ -135,7 +142,8 @@ Object.keys(TCP_API_SERVERS).forEach(key => {
           // all requests are sent out concurrently
           let [json, rawXml] = await PER_BACKEND_FUNCS[key].fetchOldAlert(ref);
           if (!json) return;
-          gotAlert(json, rawXml, json.identifier, "heartbeat-link");
+          //console.log(json);
+          gotAlert(json, rawXml, json.id, "heartbeat-link");
         });
       } else {
         const id = alert.identifier[0];
