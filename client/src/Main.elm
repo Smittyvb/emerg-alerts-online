@@ -175,7 +175,7 @@ type alias Alert =
     , sender : String
     , sent : String -- turn into date?
     , status : MsgStatus
-    , msgType : String
+    , msgType : MsgType
     , source : Maybe String
     , scope : MsgScope
     , code : List String
@@ -222,16 +222,116 @@ statusDecoder =
                     D.fail <| "Invalid status: " ++ somethingElse
         )
 
+scopeDecoder : D.Decoder MsgScope
+scopeDecoder =
+    D.string
+        |> D.andThen (\str ->
+            case str of
+                "Public" -> D.succeed Public
+                "Restricted" -> D.succeed Restricted
+                "Private" -> D.succeed Private
+                somethingElse ->
+                    D.fail <| "Invalid scope: " ++ somethingElse
+        )
+
+
+typeDecoder : D.Decoder MsgType
+typeDecoder =
+    D.string
+        |> D.andThen (\str ->
+            case str of
+                "Alert_" -> D.succeed Alert_
+                "Update" -> D.succeed Update
+                "Cancel" -> D.succeed Cancel
+                "Ack" -> D.succeed Ack
+                "Error" -> D.succeed Error
+                somethingElse ->
+                    D.fail <| "Invalid type: " ++ somethingElse
+        )
+
+infoCategoryDecoder : D.Decoder AlertInfoCategory
+infoCategoryDecoder =
+    D.string
+        |> D.andThen (\str ->
+            case str of
+                "Geo" -> D.succeed Geo
+                "Met" -> D.succeed Met
+                "Safety" -> D.succeed Safety
+                "Security" -> D.succeed Security
+                "Rescue" -> D.succeed Rescue
+                "Fire" -> D.succeed Fire
+                "Health" -> D.succeed Health
+                "Env" -> D.succeed Env
+                "Transport" -> D.succeed Transport
+                "Infra" -> D.succeed Infra
+                "CBRNE" -> D.succeed CBRNE
+                "Other" -> D.succeed Other
+                somethingElse ->
+                    D.fail <| "Invalid infoCategory: " ++ somethingElse
+        )
+
+
+responseTypeDecoder : D.Decoder AlertInfoResponseType
+responseTypeDecoder =
+    D.string
+        |> D.andThen (\str ->
+            case str of
+                "Shelter" -> D.succeed Shelter
+                "Evacuate" -> D.succeed Evacuate
+                "Prepare" -> D.succeed Prepare
+                "Execute" -> D.succeed Execute
+                "Avoid" -> D.succeed Avoid
+                "Monitor" -> D.succeed Monitor
+                "Assess" -> D.succeed Assess
+                "AllClear" -> D.succeed AllClear
+                "None" -> D.succeed None
+                somethingElse ->
+                    D.fail <| "Invalid responseType: " ++ somethingElse
+        )
+
+
+urgencyDecoder : D.Decoder AlertInfoUrgency
+urgencyDecoder =
+    D.string
+        |> D.andThen (\str ->
+            case str of
+                "Immediate" -> D.succeed Immediate
+                "Expected" -> D.succeed Expected
+                "Future" -> D.succeed Future
+                "Past" -> D.succeed Past
+                "Unknown" -> D.succeed Unknown
+                somethingElse ->
+                    D.fail <| "Invalid urgency: " ++ somethingElse
+        )
+
+
+severityDecoder : D.Decoder MsgTODO
+severityDecoder =
+    D.string
+        |> D.andThen (\str ->
+            case str of
+                "Extreme" -> D.succeed Extreme
+                "Severe" -> D.succeed Severe
+                "Moderate" -> D.succeed Moderate
+                "Minor" -> D.succeed Minor
+                "UnknownSeverity" -> D.succeed UnknownSeverity
+                somethingElse ->
+                    D.fail <| "Invalid severity: " ++ somethingElse
+        )
+
 
 --alertDecoder : D.Decoder Alert
 alertDecoder =
   D.succeed Alert
     |> required "rawXml" D.string
     |> requiredAt ["alert", "id"] D.string
+    |> requiredAt ["alert", "sender"] D.string
     |> requiredAt ["alert", "sent"] D.string
     |> requiredAt ["alert", "status"] statusDecoder
     |> requiredAt ["alert", "msgType"] D.string
     |> optionalAt ["alert", "source"] D.string
+    |> requiredAt ["alert", "scope"] scopeDecoder
+    
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
