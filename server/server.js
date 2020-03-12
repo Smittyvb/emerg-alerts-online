@@ -59,11 +59,20 @@ const PER_BACKEND_FUNCS = {
 };
 let alerts = {};
 
+function parseKeyvalArray(arr) {
+  if (!arr) return [];
+  let obj = {};
+  arr.forEach(keyVal => {
+    let key = keyVal.valueName[0];
+    let val = keyVal.value[0];
+    obj[key] = val;
+  });
+  return obj;
+}
+
 function parseAlertJson(alert) {
   //console.log("pAJ", alert);
-  let languageInfos = [];
   return {
-    languageInfos,
     id: alert.identifier[0],
     sender: alert.sender[0],
     sent: new Date(alert.sent[0]),
@@ -78,8 +87,35 @@ function parseAlertJson(alert) {
     restriction: alert.restriction ? alert.restriction[0] : undefined,
     note: alert.note ? alert.note[0] : undefined,
     incidents: alert.incidents ? alert.incidents[0] : undefined,
-    infos: (alert.infos || []).map(info => ({
-      
+    infos: (alert.info || []).map(i => ({
+      language: i.language ? i.language[0] : "en-US", // the spec says it works this way
+      category: i.category[0],
+      event: i.event[0],
+      responseType: i.responseType ? i.responseType : undefined,
+      urgency: i.urgency[0],
+      severity: i.severity[0],
+      certainty: i.certainty[0],
+      audience: i.audience ? i.audience[0] : undefined,
+      eventCodes: parseKeyvalArray(i.eventCode),
+      effective: i.effective ? i.effective[0] : undefined,
+      onset: i.onset ? new Date(i.onset[0]) : undefined,
+      expires: i.expires ? new Date(i.expires[0]) : undefined,
+      senderName: i.senderName ? new Date(i.senderName[0]) : undefined,
+      headline: i.headline ? i.headline[0] : undefined,
+      description: i.description ? i.description[0] : undefined,
+      instruction: i.instruction ? i.instruction[0] : undefined,
+      web: i.web ? i.web[0] : undefined,
+      contact: i.contact ? i.contact[0] : undefined,
+      parameters: parseKeyvalArray(i.parameter),
+      resources: (i.resources || []).map(r => ({
+        resourceDesc: r.resourceDesc[0],
+        mimeType: r.mimeType[0],
+        size: r.size ? r.size[0] : undefined,
+        uri: r.uri ? r.uri[0] : undefined,
+        derefUri: r.derefUri ? r.derefUri[0] : undefined,
+        digest: r.digest ? r.digest[0] : undefined,    
+      })),
+      areas: [], // TODO
     })),
     signatures: [], // TODO
   };

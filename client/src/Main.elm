@@ -3,14 +3,15 @@ port module Main exposing (..)
 import Browser
 import Browser.Navigation as Nav
 import Html exposing (..)
-import Html.Attributes exposing (..)
+import Html.Attributes exposing (class, id, href)
 import Html.Events exposing (onClick, onInput)
 import List
 import Platform.Cmd exposing (..)
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
 import Json.Decode as D
-import Json.Decode.Pipeline exposing (required, optional, hardcoded)
+import Json.Decode.Pipeline exposing (required, requiredAt, optional, optionalAt, hardcoded)
+import Dict exposing (Dict)
 
 
 
@@ -42,12 +43,6 @@ subscriptions model =
 
 
 -- MODEL
-
-
-type alias KeyVal =
-    { valueName : String
-    , value : String
-    }
 
 
 type MsgClass
@@ -90,7 +85,7 @@ type alias AlertArea =
     { areaDesc : String
     , polygon : Maybe String
     , circle : Maybe String
-    , geocodes : List KeyVal
+    , geocodes : Dict String String
     , altitude : Int
     , ceiling : Int
     }
@@ -120,7 +115,7 @@ type AlertInfoResponseType
     | AllClear
     | None
 
-type AlertInfoUrgenncy
+type AlertInfoUrgency
     = Immediate
     | Expected
     | Future
@@ -148,11 +143,11 @@ type alias AlertInfo =
     , category : AlertInfoCategory
     , event : String
     , responseType : Maybe AlertInfoResponseType
-    , urgency : AlertInfoUrgenncy
+    , urgency : AlertInfoUrgency
     , severity : AlertInfoSeverity
     , certainty : AlertInfoCertainty
     , audience : Maybe String
-    , eventCodes : List KeyVal
+    , eventCodes : Dict String String
     , effective : Maybe String -- TODO: date
     , onset : Maybe String -- TODO: date
     , expires : Maybe String -- TODO: date
@@ -162,7 +157,7 @@ type alias AlertInfo =
     , instruction : Maybe String
     , web : Maybe String
     , contact : Maybe String
-    , parameters : List KeyVal
+    , parameters : Dict String String
     , resources : List AlertResource
     , areas : List AlertArea
     }
@@ -213,11 +208,30 @@ type alias Model =
     }
 
 
-{--alertDecoder : D.Decoder Alert
+statusDecoder : D.Decoder MsgStatus
+statusDecoder =
+    D.string
+        |> D.andThen (\str ->
+           case str of
+                "Actual" -> D.succeed Actual
+                "Exercise" -> D.succeed Exercise
+                "System" -> D.succeed System
+                "Test" -> D.succeed Test
+                "Draft" -> D.succeed Draft
+                somethingElse ->
+                    D.fail <| "Invalid status: " ++ somethingElse
+        )
+
+
+--alertDecoder : D.Decoder Alert
 alertDecoder =
-  D.succeed User
-    |> required "rawXml"
---}
+  D.succeed Alert
+    |> required "rawXml" D.string
+    |> requiredAt ["alert", "id"] D.string
+    |> requiredAt ["alert", "sent"] D.string
+    |> requiredAt ["alert", "status"] statusDecoder
+    |> requiredAt ["alert", "msgType"] D.string
+    |> optionalAt ["alert", "source"] D.string
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
