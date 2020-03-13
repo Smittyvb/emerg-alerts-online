@@ -147,9 +147,7 @@ function gotAlert(alert, rawXml, id, source) {
   if (newAlert) {
     console.log("writing new alert to all sockets")
     sseCons.forEach(con => {
-      con.res.socket.write("\n\ndata: " + JSON.stringify([{
-        alert: alerts[id].alert,
-      }]) + "\n\n")
+      con.res.socket.write("\n\ndata: " + JSON.stringify([alerts[id]]) + "\n\n")
     });
   }
 }
