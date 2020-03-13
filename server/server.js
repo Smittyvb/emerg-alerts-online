@@ -122,6 +122,7 @@ function parseAlertJson(alert) {
 }
 
 function gotAlert(alert, rawXml, id, source) {
+  console.log("gotAlert", id, "with source", source);
   let newAlert = false;
   if (!alerts[id]) {
     newAlert = true;
@@ -144,10 +145,11 @@ function gotAlert(alert, rawXml, id, source) {
   }
   console.log("ID:", id);
   if (newAlert) {
+    console.log("writing new alert to all sockets")
     sseCons.forEach(con => {
-      con.res.socket.write("\n" + JSON.stringify({
+      con.res.socket.write("\n\ndata: " + JSON.stringify([{
         alert: alerts[id].alert,
-      }) + "\n")
+      }]) + "\n\n")
     });
   }
 }
@@ -174,6 +176,7 @@ Object.keys(TCP_API_SERVERS).forEach(key => {
       }
       alert = alert.alert;
       if (PER_BACKEND_FUNCS[key].isHeartbeat(alert)) {
+        console.log("got heartbeat");
         alert.references[0].split(" ").forEach(async ref => {
           // all requests are sent out concurrently
           let [json, rawXml] = await PER_BACKEND_FUNCS[key].fetchOldAlert(ref);
@@ -207,7 +210,9 @@ app.get("/api/:feedid/event-stream", (req, res) => {
   res.status(200).set({
     Connection: "keep-alive",
     "Cache-Control": "no-cache",
-    "Content-Type": "text/event-stream"
+    "Content-Type": "text/event-stream",
+    "Access-Control-Allow-Origin": "*",
+    "Transfer-Encoding": "identity"
   });
   sseCons.push({
     res,
@@ -217,8 +222,8 @@ app.get("/api/:feedid/event-stream", (req, res) => {
     console.log("sse socket close");
     sseCons = sseCons.filter(con => con.id !== id);
   });
-  res.write(": Connected\n");
-  res.write(JSON.stringify(Object.values(alerts)) + "\n");
+  res.write(": Connected\n\n");
+  res.write("data: " + JSON.stringify(Object.values(alerts)) + "\n\n");
 });
 setInterval(() => {
   sseCons.forEach(con => {
