@@ -2,16 +2,16 @@ port module Main exposing (..)
 
 import Browser
 import Browser.Navigation as Nav
+import Debug exposing (log)
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (class, href, id)
 import Json.Decode as D
-import Json.Decode.Pipeline exposing (custom, required, requiredAt, hardcoded)
+import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
 import List
 import Platform.Cmd exposing (..)
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
-import Debug exposing (log)
 
 
 
@@ -461,7 +461,9 @@ severityDecoder =
             )
 
 
-oStringDecoder = D.nullable D.string
+oStringDecoder =
+    D.nullable D.string
+
 
 alertDecoder : D.Decoder Alert
 alertDecoder =
@@ -485,7 +487,8 @@ alertDecoder =
 
 
 alertListDecoder : D.Decoder (List Alert)
-alertListDecoder = D.list alertDecoder
+alertListDecoder =
+    D.list alertDecoder
 
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
@@ -537,10 +540,18 @@ update msg model =
             )
 
         UpdateAlerts newAlerts ->
-            ( { model | alerts = List.concat [model.alerts, case D.decodeValue alertListDecoder newAlerts of
-                    Ok x -> List.map (\a -> SomeAlert a) x
-                    Err x -> []
-                ]}
+            ( { model
+                | alerts =
+                    List.concat
+                        [ model.alerts
+                        , case D.decodeValue alertListDecoder newAlerts of
+                            Ok x ->
+                                List.map (\a -> SomeAlert a) x
+
+                            Err x ->
+                                []
+                        ]
+              }
             , Cmd.none
             )
 
