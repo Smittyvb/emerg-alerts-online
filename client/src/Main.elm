@@ -6,11 +6,12 @@ import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (class, href, id)
 import Json.Decode as D
-import Json.Decode.Pipeline exposing (custom, required, requiredAt)
+import Json.Decode.Pipeline exposing (custom, required, requiredAt, hardcoded)
 import List
 import Platform.Cmd exposing (..)
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
+import Debug exposing (log)
 
 
 
@@ -184,7 +185,6 @@ type alias Alert =
     , scope : MsgScope
     , code : List String
     , references : Maybe String
-
     , addresses : Maybe String -- since everything is public *should* never exist
     , restriction : Maybe String -- same as above
     , note : Maybe String
@@ -192,6 +192,11 @@ type alias Alert =
     , infos : List AlertInfo
     , signatures : List Signature
     }
+
+
+type AlertOrError
+    = SomeAlert Alert
+    | InvalidAlert String
 
 
 type ConnectionStatus
@@ -203,7 +208,7 @@ type ConnectionStatus
 
 
 type alias Model =
-    { alerts : List Alert
+    { alerts : List AlertOrError
     , connectionStatus : ConnectionStatus
     , lastUpdate : Int
     , key : Nav.Key
@@ -413,7 +418,7 @@ certaintyDecoder =
                     "VeryLikely" ->
                         D.succeed Likely
 
-                    "VVery likely" ->
+                    "Very likely" ->
                         D.succeed Likely
 
                     "Possible" ->
@@ -458,9 +463,7 @@ severityDecoder =
 
 oStringDecoder = D.nullable D.string
 
---alertDecoder : D.Decoder Alert
-
-
+alertDecoder : D.Decoder Alert
 alertDecoder =
     D.succeed Alert
         |> required "rawXml" D.string
@@ -473,6 +476,16 @@ alertDecoder =
         |> requiredAt [ "alert", "scope" ] scopeDecoder
         |> requiredAt [ "alert", "code" ] (D.list D.string)
         |> requiredAt [ "alert", "references" ] oStringDecoder
+        |> requiredAt [ "alert", "addresses" ] oStringDecoder
+        |> requiredAt [ "alert", "restriction" ] oStringDecoder
+        |> requiredAt [ "alert", "note" ] oStringDecoder
+        |> requiredAt [ "alert", "incidents" ] oStringDecoder
+        |> hardcoded []
+        |> hardcoded []
+
+
+alertListDecoder : D.Decoder (List Alert)
+alertListDecoder = D.list alertDecoder
 
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
@@ -523,8 +536,11 @@ update msg model =
             , Cmd.none
             )
 
-        UpdateAlerts _ ->
-            ( model
+        UpdateAlerts newAlerts ->
+            ( { model | alerts = List.concat [model.alerts, case D.decodeValue alertListDecoder newAlerts of
+                    Ok x -> List.map (\a -> SomeAlert a) x
+                    Err x -> []
+                ]}
             , Cmd.none
             )
 
@@ -587,7 +603,7 @@ alertFinderWidget model =
         []
 
 
-genAlertHtml : Alert -> Html Msg
+genAlertHtml : AlertOrError -> Html Msg
 genAlertHtml alert =
     div [] [ text "todo" ]
 
