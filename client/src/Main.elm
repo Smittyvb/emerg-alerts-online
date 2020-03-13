@@ -269,7 +269,7 @@ typeDecoder =
         |> D.andThen
             (\str ->
                 case str of
-                    "Alert_" ->
+                    "Alert" ->
                         D.succeed Alert_
 
                     "Update" ->
@@ -465,6 +465,31 @@ oStringDecoder =
     D.nullable D.string
 
 
+alertInfoDecoder : D.Decoder AlertInfo
+alertInfoDecoder =
+    D.succeed AlertInfo
+        |> required "language" D.string
+        |> required "category" infoCategoryDecoder
+        |> required "event" D.string
+        |> required "responseType" (D.nullable responseTypeDecoder)
+        |> required "urgency" urgencyDecoder
+        |> required "severity" severityDecoder
+        |> required "certainty" certaintyDecoder
+        |> required "audience" oStringDecoder
+        |> required "eventCodes" (D.dict D.string)
+        |> required "effective" oStringDecoder
+        |> required "onset" oStringDecoder
+        |> required "expires" oStringDecoder
+        |> required "senderName" oStringDecoder
+        |> required "headline" oStringDecoder
+        |> required "description" oStringDecoder
+        |> required "instruction" oStringDecoder
+        |> required "web" oStringDecoder
+        |> required "contact" oStringDecoder
+        |> required "parameters" (D.dict D.string)
+        |> hardcoded [] -- TODO: fix
+        |> hardcoded [] -- TODO: fix
+
 alertDecoder : D.Decoder Alert
 alertDecoder =
     D.succeed Alert
@@ -482,8 +507,8 @@ alertDecoder =
         |> requiredAt [ "alert", "restriction" ] oStringDecoder
         |> requiredAt [ "alert", "note" ] oStringDecoder
         |> requiredAt [ "alert", "incidents" ] oStringDecoder
-        |> hardcoded []
-        |> hardcoded []
+        |> requiredAt [ "alert", "infos" ] (D.list alertInfoDecoder)
+        |> hardcoded []  -- TODO: fix
 
 
 alertListDecoder : D.Decoder (List Alert)
@@ -544,6 +569,7 @@ update msg model =
                 | alerts =
                     List.concat
                         [ model.alerts
+                        --, case log "decodeVal" (D.decodeValue alertListDecoder newAlerts) of
                         , case D.decodeValue alertListDecoder newAlerts of
                             Ok x ->
                                 List.map (\a -> SomeAlert a) x
@@ -615,8 +641,13 @@ alertFinderWidget model =
 
 
 genAlertHtml : AlertOrError -> Html Msg
-genAlertHtml alert =
-    div [] [ text "todo" ]
+genAlertHtml maybeAlert =
+    case maybeAlert of
+       SomeAlert alert ->
+            div [ class "alert" ] [ text alert.id ]
+
+       InvalidAlert err ->
+            div [ class "alert" ] [ text <| "error parsing alert: " ++ err ]
 
 
 connectionStatusEle : Model -> Html Msg
