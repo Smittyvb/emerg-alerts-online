@@ -2,16 +2,15 @@ port module Main exposing (..)
 
 import Browser
 import Browser.Navigation as Nav
+import Dict exposing (Dict)
 import Html exposing (..)
-import Html.Attributes exposing (class, id, href)
-import Html.Events exposing (onClick, onInput)
+import Html.Attributes exposing (class, href, id)
+import Json.Decode as D
+import Json.Decode.Pipeline exposing (custom, required, requiredAt)
 import List
 import Platform.Cmd exposing (..)
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
-import Json.Decode as D
-import Json.Decode.Pipeline exposing (required, requiredAt, optional, optionalAt, hardcoded)
-import Dict exposing (Dict)
 
 
 
@@ -19,6 +18,7 @@ import Dict exposing (Dict)
 
 
 port updateAlerts : (D.Value -> msg) -> Sub msg
+
 
 main : Program () Model Msg
 main =
@@ -45,19 +45,13 @@ subscriptions model =
 -- MODEL
 
 
-type MsgClass
-    = Heartbeat
-    | SilentTest
-    | ActualAlert
-    | UnknownType
-
-
 type MsgType
     = Alert_
     | Update
     | Cancel
     | Ack
     | Error
+
 
 type MsgStatus
     = Actual
@@ -66,11 +60,13 @@ type MsgStatus
     | Test
     | Draft
 
+
 type MsgScope
     = Public
-    -- really, we should only see Public alerts since all alerts are public in Canada
+      -- really, we should only see Public alerts since all alerts are public in Canada
     | Restricted
     | Private
+
 
 type alias AlertResource =
     { resourceDescription : String
@@ -81,6 +77,7 @@ type alias AlertResource =
     , digest : Maybe String
     }
 
+
 type alias AlertArea =
     { areaDesc : String
     , polygon : Maybe String
@@ -89,6 +86,7 @@ type alias AlertArea =
     , altitude : Int
     , ceiling : Int
     }
+
 
 type AlertInfoCategory
     = Geo
@@ -104,6 +102,7 @@ type AlertInfoCategory
     | CBRNE
     | Other
 
+
 type AlertInfoResponseType
     = Shelter
     | Evacuate
@@ -115,12 +114,14 @@ type AlertInfoResponseType
     | AllClear
     | None
 
+
 type AlertInfoUrgency
     = Immediate
     | Expected
     | Future
     | Past
     | Unknown
+
 
 type AlertInfoSeverity
     = Extreme
@@ -129,14 +130,16 @@ type AlertInfoSeverity
     | Minor
     | UnknownSeverity
 
+
 type AlertInfoCertainty
     = Observed
-    -- For backward compatibility with CAP 1.0, the deprecated value of “Very Likely” SHOULD be
-    -- treated as equivalent to “Likely” -- spec
+      -- For backward compatibility with CAP 1.0, the deprecated value of “Very Likely” SHOULD be
+      -- treated as equivalent to “Likely” -- spec
     | Likely
     | Possible
     | Unlikely
     | UnknownCertainty
+
 
 type alias AlertInfo =
     { language : String -- language code, if one isn't specified the standard says it's "en-US"
@@ -169,6 +172,7 @@ type alias Signature =
     , valid : Bool
     }
 
+
 type alias Alert =
     { rawXml : String
     , id : String
@@ -180,7 +184,7 @@ type alias Alert =
     , scope : MsgScope
     , code : List String
     , references : Maybe String
-    , class : MsgClass
+
     , addresses : Maybe String -- since everything is public *should* never exist
     , restriction : Maybe String -- same as above
     , note : Maybe String
@@ -211,127 +215,265 @@ type alias Model =
 statusDecoder : D.Decoder MsgStatus
 statusDecoder =
     D.string
-        |> D.andThen (\str ->
-           case str of
-                "Actual" -> D.succeed Actual
-                "Exercise" -> D.succeed Exercise
-                "System" -> D.succeed System
-                "Test" -> D.succeed Test
-                "Draft" -> D.succeed Draft
-                somethingElse ->
-                    D.fail <| "Invalid status: " ++ somethingElse
-        )
+        |> D.andThen
+            (\str ->
+                case str of
+                    "Actual" ->
+                        D.succeed Actual
+
+                    "Exercise" ->
+                        D.succeed Exercise
+
+                    "System" ->
+                        D.succeed System
+
+                    "Test" ->
+                        D.succeed Test
+
+                    "Draft" ->
+                        D.succeed Draft
+
+                    somethingElse ->
+                        D.fail <| "Invalid status: " ++ somethingElse
+            )
+
 
 scopeDecoder : D.Decoder MsgScope
 scopeDecoder =
     D.string
-        |> D.andThen (\str ->
-            case str of
-                "Public" -> D.succeed Public
-                "Restricted" -> D.succeed Restricted
-                "Private" -> D.succeed Private
-                somethingElse ->
-                    D.fail <| "Invalid scope: " ++ somethingElse
-        )
+        |> D.andThen
+            (\str ->
+                case str of
+                    "Public" ->
+                        D.succeed Public
+
+                    "Restricted" ->
+                        D.succeed Restricted
+
+                    "Private" ->
+                        D.succeed Private
+
+                    somethingElse ->
+                        D.fail <| "Invalid scope: " ++ somethingElse
+            )
 
 
 typeDecoder : D.Decoder MsgType
 typeDecoder =
     D.string
-        |> D.andThen (\str ->
-            case str of
-                "Alert_" -> D.succeed Alert_
-                "Update" -> D.succeed Update
-                "Cancel" -> D.succeed Cancel
-                "Ack" -> D.succeed Ack
-                "Error" -> D.succeed Error
-                somethingElse ->
-                    D.fail <| "Invalid type: " ++ somethingElse
-        )
+        |> D.andThen
+            (\str ->
+                case str of
+                    "Alert_" ->
+                        D.succeed Alert_
+
+                    "Update" ->
+                        D.succeed Update
+
+                    "Cancel" ->
+                        D.succeed Cancel
+
+                    "Ack" ->
+                        D.succeed Ack
+
+                    "Error" ->
+                        D.succeed Error
+
+                    somethingElse ->
+                        D.fail <| "Invalid type: " ++ somethingElse
+            )
+
 
 infoCategoryDecoder : D.Decoder AlertInfoCategory
 infoCategoryDecoder =
     D.string
-        |> D.andThen (\str ->
-            case str of
-                "Geo" -> D.succeed Geo
-                "Met" -> D.succeed Met
-                "Safety" -> D.succeed Safety
-                "Security" -> D.succeed Security
-                "Rescue" -> D.succeed Rescue
-                "Fire" -> D.succeed Fire
-                "Health" -> D.succeed Health
-                "Env" -> D.succeed Env
-                "Transport" -> D.succeed Transport
-                "Infra" -> D.succeed Infra
-                "CBRNE" -> D.succeed CBRNE
-                "Other" -> D.succeed Other
-                somethingElse ->
-                    D.fail <| "Invalid infoCategory: " ++ somethingElse
-        )
+        |> D.andThen
+            (\str ->
+                case str of
+                    "Geo" ->
+                        D.succeed Geo
+
+                    "Met" ->
+                        D.succeed Met
+
+                    "Safety" ->
+                        D.succeed Safety
+
+                    "Security" ->
+                        D.succeed Security
+
+                    "Rescue" ->
+                        D.succeed Rescue
+
+                    "Fire" ->
+                        D.succeed Fire
+
+                    "Health" ->
+                        D.succeed Health
+
+                    "Env" ->
+                        D.succeed Env
+
+                    "Transport" ->
+                        D.succeed Transport
+
+                    "Infra" ->
+                        D.succeed Infra
+
+                    "CBRNE" ->
+                        D.succeed CBRNE
+
+                    "Other" ->
+                        D.succeed Other
+
+                    somethingElse ->
+                        D.fail <| "Invalid infoCategory: " ++ somethingElse
+            )
 
 
 responseTypeDecoder : D.Decoder AlertInfoResponseType
 responseTypeDecoder =
     D.string
-        |> D.andThen (\str ->
-            case str of
-                "Shelter" -> D.succeed Shelter
-                "Evacuate" -> D.succeed Evacuate
-                "Prepare" -> D.succeed Prepare
-                "Execute" -> D.succeed Execute
-                "Avoid" -> D.succeed Avoid
-                "Monitor" -> D.succeed Monitor
-                "Assess" -> D.succeed Assess
-                "AllClear" -> D.succeed AllClear
-                "None" -> D.succeed None
-                somethingElse ->
-                    D.fail <| "Invalid responseType: " ++ somethingElse
-        )
+        |> D.andThen
+            (\str ->
+                case str of
+                    "Shelter" ->
+                        D.succeed Shelter
+
+                    "Evacuate" ->
+                        D.succeed Evacuate
+
+                    "Prepare" ->
+                        D.succeed Prepare
+
+                    "Execute" ->
+                        D.succeed Execute
+
+                    "Avoid" ->
+                        D.succeed Avoid
+
+                    "Monitor" ->
+                        D.succeed Monitor
+
+                    "Assess" ->
+                        D.succeed Assess
+
+                    "AllClear" ->
+                        D.succeed AllClear
+
+                    "None" ->
+                        D.succeed None
+
+                    somethingElse ->
+                        D.fail <| "Invalid responseType: " ++ somethingElse
+            )
 
 
 urgencyDecoder : D.Decoder AlertInfoUrgency
 urgencyDecoder =
     D.string
-        |> D.andThen (\str ->
-            case str of
-                "Immediate" -> D.succeed Immediate
-                "Expected" -> D.succeed Expected
-                "Future" -> D.succeed Future
-                "Past" -> D.succeed Past
-                "Unknown" -> D.succeed Unknown
-                somethingElse ->
-                    D.fail <| "Invalid urgency: " ++ somethingElse
-        )
+        |> D.andThen
+            (\str ->
+                case str of
+                    "Immediate" ->
+                        D.succeed Immediate
+
+                    "Expected" ->
+                        D.succeed Expected
+
+                    "Future" ->
+                        D.succeed Future
+
+                    "Past" ->
+                        D.succeed Past
+
+                    "Unknown" ->
+                        D.succeed Unknown
+
+                    somethingElse ->
+                        D.fail <| "Invalid urgency: " ++ somethingElse
+            )
 
 
-severityDecoder : D.Decoder MsgTODO
+certaintyDecoder : D.Decoder AlertInfoCertainty
+certaintyDecoder =
+    D.string
+        |> D.andThen
+            (\str ->
+                case str of
+                    "Observed" ->
+                        D.succeed Observed
+
+                    "Likely" ->
+                        D.succeed Likely
+
+                    "Very Likely" ->
+                        D.succeed Likely
+
+                    "VeryLikely" ->
+                        D.succeed Likely
+
+                    "VVery likely" ->
+                        D.succeed Likely
+
+                    "Possible" ->
+                        D.succeed Possible
+
+                    "Unlikely" ->
+                        D.succeed Unlikely
+
+                    "UnknownCertainty" ->
+                        D.succeed UnknownCertainty
+
+                    somethingElse ->
+                        D.fail <| "Invalid certainty: " ++ somethingElse
+            )
+
+
+severityDecoder : D.Decoder AlertInfoSeverity
 severityDecoder =
     D.string
-        |> D.andThen (\str ->
-            case str of
-                "Extreme" -> D.succeed Extreme
-                "Severe" -> D.succeed Severe
-                "Moderate" -> D.succeed Moderate
-                "Minor" -> D.succeed Minor
-                "UnknownSeverity" -> D.succeed UnknownSeverity
-                somethingElse ->
-                    D.fail <| "Invalid severity: " ++ somethingElse
-        )
+        |> D.andThen
+            (\str ->
+                case str of
+                    "Extreme" ->
+                        D.succeed Extreme
 
+                    "Severe" ->
+                        D.succeed Severe
+
+                    "Moderate" ->
+                        D.succeed Moderate
+
+                    "Minor" ->
+                        D.succeed Minor
+
+                    "UnknownSeverity" ->
+                        D.succeed UnknownSeverity
+
+                    somethingElse ->
+                        D.fail <| "Invalid severity: " ++ somethingElse
+            )
+
+
+oStringDecoder = D.nullable D.string
 
 --alertDecoder : D.Decoder Alert
+
+
 alertDecoder =
-  D.succeed Alert
-    |> required "rawXml" D.string
-    |> requiredAt ["alert", "id"] D.string
-    |> requiredAt ["alert", "sender"] D.string
-    |> requiredAt ["alert", "sent"] D.string
-    |> requiredAt ["alert", "status"] statusDecoder
-    |> requiredAt ["alert", "msgType"] D.string
-    |> optionalAt ["alert", "source"] D.string
-    |> requiredAt ["alert", "scope"] scopeDecoder
-    
+    D.succeed Alert
+        |> required "rawXml" D.string
+        |> requiredAt [ "alert", "id" ] D.string
+        |> requiredAt [ "alert", "sender" ] D.string
+        |> requiredAt [ "alert", "sent" ] D.string
+        |> requiredAt [ "alert", "status" ] statusDecoder
+        |> requiredAt [ "alert", "msgType" ] typeDecoder
+        |> requiredAt [ "alert", "source" ] oStringDecoder
+        |> requiredAt [ "alert", "scope" ] scopeDecoder
+        |> requiredAt [ "alert", "code" ] (D.list D.string)
+        |> requiredAt [ "alert", "references" ] oStringDecoder
+
 
 init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
@@ -381,9 +523,10 @@ update msg model =
             , Cmd.none
             )
 
-        UpdateAlerts alerts ->
+        UpdateAlerts _ ->
             ( model
-            , Cmd.none)
+            , Cmd.none
+            )
 
 
 
@@ -486,7 +629,7 @@ view model =
                     Just Faq ->
                         [ subheader "FAQ" ]
 
-                    Just (Search search) ->
+                    Just (Search _) ->
                         List.concat
                             [ [ alertFinderWidget model ]
                             , if List.length model.alerts == 0 then
