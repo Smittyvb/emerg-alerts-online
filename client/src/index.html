@@ -7,8 +7,15 @@
     <link href="/main.css" rel="stylesheet">
     <script src="/elm.js"></script>
     <script>
+      function getLang() {
+        return navigator.language.split("-")[0];
+      }
       window.addEventListener("DOMContentLoaded", function () {
-        let app = Elm.Main.init();
+        let app = Elm.Main.init({
+          flags: {
+            language: getLang(),
+          }
+        });
         window.app = app;
         let stream = new EventSource("http://100.115.92.204:8080/api/canada/event-stream");
         stream.onmessage = function(e) {

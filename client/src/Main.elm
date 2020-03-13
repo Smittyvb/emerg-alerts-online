@@ -1,4 +1,4 @@
-port module Main exposing (..)
+port module Main exposing (updateAlerts)
 
 import Browser
 import Browser.Navigation as Nav
@@ -9,7 +9,6 @@ import Html.Attributes exposing (class, href, id)
 import Json.Decode as D
 import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
 import List
-import Platform.Cmd exposing (..)
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
 
@@ -21,7 +20,12 @@ import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
 port updateAlerts : (D.Value -> msg) -> Sub msg
 
 
-main : Program () Model Msg
+type alias FlagData =
+    { language : String
+    }
+
+
+main : Program FlagData Model Msg
 main =
     Browser.application
         { init = init
@@ -38,7 +42,7 @@ main =
 
 
 subscriptions : Model -> Sub Msg
-subscriptions model =
+subscriptions _ =
     updateAlerts UpdateAlerts
 
 
@@ -214,6 +218,7 @@ type alias Model =
     , key : Nav.Key
     , url : Url.Url
     , search : String
+    , language : String
     }
 
 
@@ -461,8 +466,20 @@ severityDecoder =
             )
 
 
+oStringDecoder : D.Decoder (Maybe String)
 oStringDecoder =
     D.nullable D.string
+
+
+alertResourceDecoder : D.Decoder AlertResource
+alertResourceDecoder =
+    D.succeed AlertResource
+        |> required "resourceDescription" D.string
+        |> required "mimeType" D.string
+        |> required "size" (D.nullable D.int)
+        |> required "uri" oStringDecoder
+        |> required "derefUri" oStringDecoder
+        |> required "digest" oStringDecoder
 
 
 alertInfoDecoder : D.Decoder AlertInfo
@@ -487,7 +504,7 @@ alertInfoDecoder =
         |> required "web" oStringDecoder
         |> required "contact" oStringDecoder
         |> required "parameters" (D.dict D.string)
-        |> hardcoded [] -- TODO: fix
+        |> required "resources" (D.list alertResourceDecoder)
         |> hardcoded [] -- TODO: fix
 
 alertDecoder : D.Decoder Alert
@@ -516,7 +533,7 @@ alertListDecoder =
     D.list alertDecoder
 
 
-init : () -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
+init : FlagData -> Url.Url -> Nav.Key -> ( Model, Cmd Msg )
 init flags url key =
     ( { alerts = []
       , connectionStatus = Connecting
@@ -524,6 +541,7 @@ init flags url key =
       , key = key
       , url = url
       , search = ""
+      , language = flags.language
       }
     , Cmd.none
     )
@@ -574,7 +592,7 @@ update msg model =
                             Ok x ->
                                 List.map (\a -> SomeAlert a) x
 
-                            Err x ->
+                            Err _ ->
                                 []
                         ]
               }
