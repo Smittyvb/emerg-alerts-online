@@ -8,7 +8,7 @@
     <script src="/elm.js"></script>
     <script>
       function getLang() {
-        return navigator.language.split("-")[0];
+        return navigator.language.split("-")[0] + "-CA";
       }
       let connectionStatus = "Connecting";
       function updateConnectionStatus(n) {
@@ -30,8 +30,9 @@
           // due to a bug, sometimes we see [], filter it
           let alerts = JSON.parse(e.data).filter(x => x.length !== 0);
           console.log(alerts);
-          app.ports.updateAlerts.send(alerts.filter(a => !knownAlerts[a]));
-          alerts.forEach(a => knownAlerts[a] = true);
+          // TODO: update the status of the alert to indicate it was received via another method
+          app.ports.updateAlerts.send(alerts.filter(a => !knownAlerts[a.alert.id]));
+          alerts.forEach(a => knownAlerts[a.alert.id] = true);
           updateConnectionStatus("Connected");
         };
         stream.onerror = function(e) {

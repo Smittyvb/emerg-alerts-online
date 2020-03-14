@@ -161,9 +161,9 @@ type alias AlertInfo =
     , certainty : AlertInfoCertainty
     , audience : Maybe String
     , eventCodes : Dict String String
-    , effective : Maybe String -- TODO: date
-    , onset : Maybe String -- TODO: date
-    , expires : Maybe String -- TODO: date
+    , effective : Maybe Int
+    , onset : Maybe Int
+    , expires : Maybe Int
     , senderName : Maybe String
     , headline : Maybe String
     , description : Maybe String
@@ -187,7 +187,7 @@ type alias Alert =
     { rawXml : String
     , id : String
     , sender : String
-    , sent : String -- turn into date?
+    , sent : Int
     , status : MsgStatus
     , msgType : MsgType
     , source : Maybe String
@@ -437,7 +437,7 @@ certaintyDecoder =
                     "Unlikely" ->
                         D.succeed Unlikely
 
-                    "UnknownCertainty" ->
+                    "Unknown" ->
                         D.succeed UnknownCertainty
 
                     somethingElse ->
@@ -463,7 +463,7 @@ severityDecoder =
                     "Minor" ->
                         D.succeed Minor
 
-                    "UnknownSeverity" ->
+                    "Unknown" ->
                         D.succeed UnknownSeverity
 
                     somethingElse ->
@@ -499,9 +499,9 @@ alertInfoDecoder =
         |> required "certainty" certaintyDecoder
         |> required "audience" oStringDecoder
         |> required "eventCodes" (D.dict D.string)
-        |> required "effective" oStringDecoder
-        |> required "onset" oStringDecoder
-        |> required "expires" oStringDecoder
+        |> required "effective" (D.nullable D.int)
+        |> required "onset" (D.nullable D.int)
+        |> required "expires" (D.nullable D.int)
         |> required "senderName" oStringDecoder
         |> required "headline" oStringDecoder
         |> required "description" oStringDecoder
@@ -519,7 +519,7 @@ alertDecoder =
         |> required "rawXml" D.string
         |> requiredAt [ "alert", "id" ] D.string
         |> requiredAt [ "alert", "sender" ] D.string
-        |> requiredAt [ "alert", "sent" ] D.string
+        |> requiredAt [ "alert", "sent" ] D.int
         |> requiredAt [ "alert", "status" ] statusDecoder
         |> requiredAt [ "alert", "msgType" ] typeDecoder
         |> requiredAt [ "alert", "source" ] oStringDecoder
@@ -662,10 +662,38 @@ route =
         ]
 
 
-alertDiv : Alert -> Html Msg
-alertDiv alert =
-    div [ class "alert" ] [ h3 [ class "alert-title" ] [ text "todo" ] ]
+alertInfoForLang : Alert -> String -> Maybe AlertInfo
+alertInfoForLang alert lang =
+    List.head <| List.filter (\ele -> ele.language == lang) alert.infos
 
+
+alertTitle : AlertInfo -> String
+alertTitle info =
+    case info.headline of
+        Just headline ->
+            headline
+        Nothing ->
+            "(untitled alert)"
+
+
+alertDiv : Alert -> String -> Html Msg
+alertDiv alert lang =
+    div [ class "alert" ] [ case alertInfoForLang alert lang of 
+        Just info ->
+            div []
+            [ h3 [ class "alert-title" ] [ text <| alertTitle info ]
+            , div [ class "alert-sender" ] [ text <| "Sent by: " ++ alert.sender]
+            , div [ class "alert-instructions" ] [ case info.instruction of
+                Just x ->
+                    text x
+                Nothing ->
+                    span [ class "no-instructions" ] [ text "No instructions provided." ]
+            ]
+            ]
+        Nothing ->
+            div [ class "no-lang-data" ] [ text <| "There is no data for this alert in " ++ lang ]
+        ]
+    
 
 subheader : String -> Html Msg
 subheader title =
@@ -678,11 +706,11 @@ alertFinderWidget model =
         []
 
 
-genAlertHtml : AlertOrError -> Html Msg
-genAlertHtml maybeAlert =
+genAlertHtml : String -> AlertOrError -> Html Msg
+genAlertHtml lang maybeAlert =
     case maybeAlert of
         SomeAlert alert ->
-            div [ class "alert" ] [ text alert.id ]
+            alertDiv alert lang
 
         InvalidAlert err ->
             div [ class "alert" ] [ text <| "error parsing alert: " ++ err ]
@@ -732,7 +760,7 @@ view model =
                                 [ div [ class "no-alerts" ] [ text "No alerts found." ] ]
 
                               else
-                                List.map genAlertHtml model.alerts
+                                List.map (genAlertHtml model.language) model.alerts
                             ]
 
                     Nothing ->
