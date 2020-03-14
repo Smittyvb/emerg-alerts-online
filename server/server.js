@@ -22,7 +22,7 @@ const TCP_API_SERVERS = {
 const PER_BACKEND_FUNCS = {
   canada: {
     isHeartbeat: function(alert) {
-      return alert.alert.sender === "NAADS-Heartbeat";
+      return alert.sender === "NAADS-Heartbeat";
     },
     normalizeArchivePortion: function(str) {
       // page 24 of LMD guide
@@ -142,6 +142,29 @@ function parseAlertJson(alert) {
 
 function gotAlert(alert, rawXml, id, source, serverId) {
   console.log("gotAlert", id, "with source", source);
+
+  if (alert.references) {
+    console.log("got alert with references");
+    alert.references.split(" ").forEach(async ref => {
+      // all requests are sent out concurrently
+      console.log("got ref", ref);
+      let json, rawXml;
+      try {
+        [json, rawXml] = await PER_BACKEND_FUNCS[serverId].fetchOldAlert(ref);
+      } catch (e) {
+        console.log("got invalid ref", ref, e);
+        return;
+      }
+      if (!json) return;
+      //console.log(json);
+      gotAlert(json, rawXml, json.id, "heartbeat-link", serverId);
+    });
+  }
+
+  if (PER_BACKEND_FUNCS[serverId].isHeartbeat(alert)) {
+    console.log("Alert is heartbeat, not storing");
+    return;
+  }
   let newAlert = false;
   if (!alerts[id]) {
     newAlert = true;
@@ -163,27 +186,10 @@ function gotAlert(alert, rawXml, id, source, serverId) {
     throw new Error("invalid source " + source);
   }
   console.log("ID:", id);
-  if (newAlert && !PER_BACKEND_FUNCS[serverId].isHeartbeat(alerts[id])) {
+  if (newAlert) {
     console.log("writing new alert to all sockets")
     sseCons.forEach(con => {
       con.res.socket.write("\n\ndata: " + JSON.stringify([alerts[id]]) + "\n\n")
-    });
-  }
-  if (alerts[id].alert.references) {
-    console.log("got alert with references");
-    alerts[id].alert.references.split(" ").forEach(async ref => {
-      // all requests are sent out concurrently
-      console.log("got ref", ref);
-      let json, rawXml;
-      try {
-        [json, rawXml] = await PER_BACKEND_FUNCS[serverId].fetchOldAlert(ref);
-      } catch (e) {
-        console.log("got invalid ref", ref, e);
-        return;
-      }
-      if (!json) return;
-      //console.log(json);
-      gotAlert(json, rawXml, json.id, "heartbeat-link", serverId);
     });
   }
 }

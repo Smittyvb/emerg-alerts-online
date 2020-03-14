@@ -10,8 +10,12 @@ import Html.Lazy exposing (lazy2)
 import Json.Decode as D
 import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
 import List
+import Task
+import Time
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
+import DateFormat
+import DateFormat.Relative exposing (relativeTime)
 
 
 
@@ -19,6 +23,8 @@ import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
 
 
 port updateAlerts : (D.Value -> msg) -> Sub msg
+
+
 port updateConnectionStatus : (String -> msg) -> Sub msg
 
 
@@ -46,9 +52,10 @@ main =
 subscriptions : Model -> Sub Msg
 subscriptions _ =
     Sub.batch
-    [ updateAlerts UpdateAlerts
-    , updateConnectionStatus UpdateConnectionStatus
-    ]
+        [ updateAlerts UpdateAlerts
+        , updateConnectionStatus UpdateConnectionStatus
+        , Time.every 1000 Tick
+        ]
 
 
 
@@ -224,6 +231,8 @@ type alias Model =
     , url : Url.Url
     , search : String
     , language : String
+    , timeZone : Time.Zone
+    , time : Time.Posix
     }
 
 
@@ -510,7 +519,11 @@ alertInfoDecoder =
         |> required "contact" oStringDecoder
         |> required "parameters" (D.dict D.string)
         |> required "resources" (D.list alertResourceDecoder)
-        |> hardcoded [] -- TODO: fix
+        |> hardcoded []
+
+
+
+-- TODO: fix
 
 
 alertDecoder : D.Decoder Alert
@@ -531,7 +544,11 @@ alertDecoder =
         |> requiredAt [ "alert", "note" ] oStringDecoder
         |> requiredAt [ "alert", "incidents" ] oStringDecoder
         |> requiredAt [ "alert", "infos" ] (D.list alertInfoDecoder)
-        |> hardcoded [] -- TODO: fix
+        |> hardcoded []
+
+
+
+-- TODO: fix
 
 
 alertListDecoder : D.Decoder (List Alert)
@@ -548,8 +565,10 @@ init flags url key =
       , url = url
       , search = ""
       , language = flags.language
+      , timeZone = Time.utc
+      , time = Time.millisToPosix 0
       }
-    , Cmd.none
+    , Task.perform TimeZone Time.here
     )
 
 
@@ -559,6 +578,8 @@ type Msg
     | SearchChange String
     | UpdateAlerts D.Value
     | UpdateConnectionStatus String
+    | TimeZone Time.Zone
+    | Tick Time.Posix
 
 
 genSearchUrl : String -> String
@@ -602,19 +623,40 @@ update msg model =
 
                             Err err ->
                                 -- this is a hack to log the error then
-                                Tuple.first ([], log "decoding error" err)
+                                Tuple.first ( [], log "decoding error" err )
                         ]
               }
             , Cmd.none
             )
 
         UpdateConnectionStatus newStatus ->
-            ( { model | connectionStatus = case newStatus of
-                    "Connected" -> Connected
-                    "Connecting" -> Connecting
-                    "Disconnected" -> Disconnected
-                    _ -> Disconnected -- hack, so I don't need error handling here
-                }
+            ( { model
+                | connectionStatus =
+                    case newStatus of
+                        "Connected" ->
+                            Connected
+
+                        "Connecting" ->
+                            Connecting
+
+                        "Disconnected" ->
+                            Disconnected
+
+                        _ ->
+                            Disconnected
+
+                -- hack, so I don't need error handling here
+              }
+            , Cmd.none
+            )
+
+        TimeZone zone ->
+            ( { model | timeZone = zone }
+            , Cmd.none
+            )
+
+        Tick newTime ->
+            ( { model | time = newTime }
             , Cmd.none
             )
 
@@ -672,28 +714,63 @@ alertTitle info =
     case info.headline of
         Just headline ->
             headline
+
         Nothing ->
             "(untitled alert)"
 
 
-alertDiv : Alert -> String -> Html Msg
-alertDiv alert lang =
-    div [ class "alert" ] [ case alertInfoForLang alert lang of 
-        Just info ->
-            div []
-            [ h3 [ class "alert-title" ] [ text <| alertTitle info ]
-            , div [ class "alert-sender" ] [ text <| "Sent by: " ++ alert.sender]
-            , div [ class "alert-instructions" ] [ case info.instruction of
-                Just x ->
-                    text x
-                Nothing ->
-                    span [ class "no-instructions" ] [ text "No instructions provided." ]
-            ]
-            ]
-        Nothing ->
-            div [ class "no-lang-data" ] [ text <| "There is no data for this alert in " ++ lang ]
+fullDateFormatter : Time.Zone -> Time.Posix -> String
+fullDateFormatter =
+    DateFormat.format
+        [ DateFormat.monthNameFull
+        , DateFormat.text " "
+        , DateFormat.dayOfMonthSuffix
+        , DateFormat.text ", "
+        , DateFormat.yearNumber
+        , DateFormat.text " "
+        , DateFormat.hourNumber
+        , DateFormat.text ":"
+        , DateFormat.minuteFixed
+        , DateFormat.text " "
+        , DateFormat.amPmLowercase
         ]
-    
+
+
+dateEle : Time.Zone -> Int -> Time.Posix -> Html Msg
+dateEle zone time now =
+    let
+        posix = Time.millisToPosix time
+    in
+        div
+            [ Html.Attributes.title <| fullDateFormatter zone posix ]
+            [ text <| relativeTime now posix
+            ]
+
+alertDiv : Alert -> String -> Time.Zone -> Time.Posix -> Html Msg
+alertDiv alert lang zone now =
+    div [ class "alert" ]
+        [ case alertInfoForLang alert lang of
+            Just info ->
+                div []
+                    [ h3 [ class "alert-title" ] [ text <| alertTitle info ]
+                    , div 
+                        [ class "alert-sender" ]
+                        [ text <| "Sent by: " ++ alert.sender ++ " at "
+                        , dateEle zone alert.sent now]
+                    , div [ class "alert-instructions" ]
+                        [ case info.instruction of
+                            Just x ->
+                                text x
+
+                            Nothing ->
+                                span [ class "no-instructions" ] [ text "No instructions provided." ]
+                        ]
+                    ]
+
+            Nothing ->
+                div [ class "no-lang-data" ] [ text <| "There is no data for this alert in " ++ lang ]
+        ]
+
 
 subheader : String -> Html Msg
 subheader title =
@@ -706,11 +783,11 @@ alertFinderWidget model =
         []
 
 
-genAlertHtml : String -> AlertOrError -> Html Msg
-genAlertHtml lang maybeAlert =
+genAlertHtml : String -> Time.Zone -> Time.Posix -> AlertOrError -> Html Msg
+genAlertHtml lang zone now maybeAlert =
     case maybeAlert of
         SomeAlert alert ->
-            alertDiv alert lang
+            alertDiv alert lang zone now
 
         InvalidAlert err ->
             div [ class "alert" ] [ text <| "error parsing alert: " ++ err ]
@@ -760,7 +837,15 @@ view model =
                                 [ div [ class "no-alerts" ] [ text "No alerts found." ] ]
 
                               else
-                                List.map (genAlertHtml model.language) model.alerts
+                                model.alerts
+                                    |> List.sortBy (\a -> case a of
+                                        SomeAlert alert ->
+                                            -alert.sent
+                                    
+                                        InvalidAlert _ ->
+                                            round (1 / (-0)) -- hack to get negative infinity
+                                    )
+                                    |> List.map (genAlertHtml model.language model.timeZone model.time) 
                             ]
 
                     Nothing ->
