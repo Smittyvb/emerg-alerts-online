@@ -51,20 +51,24 @@ const PER_BACKEND_FUNCS = {
       }
 
       let msAgoSent = Date.now() - new Date(sent);
-      if (msAgoSent > 86400) return [false, false]; // 1 day
+      if (msAgoSent > 86400000) { // 1 day
+        console.log("not fetching", id, "because it is too old")
+        return [false, false];
+      }
 
 
       // yes, HTTP. SSL isn't supported.
       const xmlFilename = PER_BACKEND_FUNCS.canada.normalizeArchivePortion(`${sent}I${id}`);
       const url = `http://capcp${forceBackupServer ? 2 : 1}.naad-adna.pelmorex.com/${sent.split("T")[0]}/${xmlFilename}.xml`;
       
-      await new Promise((resolve, reject) => {
+      return await new Promise((resolve, reject) => {
         PER_BACKEND_FUNCS.canada.oldAlertQueue(async function () {
           console.log("fetching", url);
+          let text, json;
           try {
             let res = await fetch(url);
-            let text = await res.text();
-            let json = await xml2js.parseStringPromise(text);
+            text = await res.text();
+            json = await xml2js.parseStringPromise(text);
           } catch (e) { reject(e); }
           resolve([parseAlertJson(json.alert), text]);
         });
@@ -174,7 +178,7 @@ function gotAlert(alert, rawXml, id, source, serverId) {
       try {
         [json, rawXml] = await PER_BACKEND_FUNCS[serverId].fetchOldAlert(ref);
       } catch (e) {
-        console.log("got invalid ref", ref);
+        console.log("got invalid ref", ref, e);
         return;
       }
       if (!json) return;
