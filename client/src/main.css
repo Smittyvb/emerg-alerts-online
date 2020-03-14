@@ -54,6 +54,9 @@ header {
 .alert-title {
     margin: 0;
 }
+.no-instructions {
+    font-style: italic;
+}
 
 .connection-status {
     float: right;
