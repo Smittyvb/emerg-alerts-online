@@ -1,7 +1,9 @@
-const express  = require("express");
-const fetch    = require("node-fetch");
-const net      = require("net");
-const xml2js   = require("xml2js");
+const express        = require("express");
+const fetch          = require("node-fetch");
+const net            = require("net");
+const xml2js         = require("xml2js");
+const throttledQueue = require("throttled-queue");
+const util           = require("util");
 
 const USER_AGENT = "online-emerg-alert-fetcher/0.1";
 const TCP_API_SERVERS = {
@@ -20,7 +22,7 @@ const TCP_API_SERVERS = {
 const PER_BACKEND_FUNCS = {
   canada: {
     isHeartbeat: function(alert) {
-      return alert.sender[0] === "NAADS-Heartbeat";
+      return alert.alert.sender === "NAADS-Heartbeat";
     },
     normalizeArchivePortion: function(str) {
       // page 24 of LMD guide
@@ -36,6 +38,7 @@ const PER_BACKEND_FUNCS = {
     checkIfAlertSigned: async function(alert) {
 
     },
+    oldAlertQueue: throttledQueue(5, 5000), // at most 5 requests every 5 seconds
     fetchOldAlert: async function(ref, forceBackupServer = false) {
       // page 24 of the LMD guide
       // cap-pac@canada.ca,urn:oid:2.49.0.1.124.4280542342.2020,2020-03-06T14:32:38-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2271109197.2020,2020-03-06T14:33:38-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2825789534.2020,2020-03-06T14:32:34-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2654922216.2020,2020-03-06T14:32:27-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.1308899007.2020,2020-03-06T15:32:42-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.3622084484.2020,2020-03-06T15:33:17-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2302068752.2020,2020-03-06T15:33:42-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2627528432.2020,2020-03-06T15:34:17-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.1656974427.2020,2020-03-06T15:53:15-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2963379165.2020,2020-03-06T15:53:24-00:00
@@ -43,17 +46,29 @@ const PER_BACKEND_FUNCS = {
       let [sender, id, sent] = ref.split(",");
       if (alerts[id]) {
         // already have this alert
+        console.log("already have", id);
         return [false, false];
       }
+
+      let msAgoSent = Date.now() - new Date(sent);
+      if (msAgoSent > 86400) return [false, false]; // 1 day
+
 
       // yes, HTTP. SSL isn't supported.
       const xmlFilename = PER_BACKEND_FUNCS.canada.normalizeArchivePortion(`${sent}I${id}`);
       const url = `http://capcp${forceBackupServer ? 2 : 1}.naad-adna.pelmorex.com/${sent.split("T")[0]}/${xmlFilename}.xml`;
-      console.log(url);
-      let res = await fetch(url);
-      let text = await res.text();
-      let json = await xml2js.parseStringPromise(text);
-      return [parseAlertJson(json.alert), text];
+      
+      await new Promise((resolve, reject) => {
+        PER_BACKEND_FUNCS.canada.oldAlertQueue(async function () {
+          console.log("fetching", url);
+          try {
+            let res = await fetch(url);
+            let text = await res.text();
+            let json = await xml2js.parseStringPromise(text);
+          } catch (e) { reject(e); }
+          resolve([parseAlertJson(json.alert), text]);
+        });
+      });
     }
   }
 };
@@ -121,7 +136,7 @@ function parseAlertJson(alert) {
   };
 }
 
-function gotAlert(alert, rawXml, id, source) {
+function gotAlert(alert, rawXml, id, source, serverId) {
   console.log("gotAlert", id, "with source", source);
   let newAlert = false;
   if (!alerts[id]) {
@@ -144,10 +159,27 @@ function gotAlert(alert, rawXml, id, source) {
     throw new Error("invalid source " + source);
   }
   console.log("ID:", id);
-  if (newAlert) {
+  if (newAlert && !PER_BACKEND_FUNCS[serverId].isHeartbeat(alerts[id])) {
     console.log("writing new alert to all sockets")
     sseCons.forEach(con => {
       con.res.socket.write("\n\ndata: " + JSON.stringify([alerts[id]]) + "\n\n")
+    });
+  }
+  if (alerts[id].alert.references) {
+    console.log("got alert with references");
+    alerts[id].alert.references.split(" ").forEach(async ref => {
+      // all requests are sent out concurrently
+      console.log("got ref", ref);
+      let json, rawXml;
+      try {
+        [json, rawXml] = await PER_BACKEND_FUNCS[serverId].fetchOldAlert(ref);
+      } catch (e) {
+        console.log("got invalid ref", ref);
+        return;
+      }
+      if (!json) return;
+      //console.log(json);
+      gotAlert(json, rawXml, json.id, "heartbeat-link", serverId);
     });
   }
 }
@@ -173,22 +205,11 @@ Object.keys(TCP_API_SERVERS).forEach(key => {
         return;
       }
       alert = alert.alert;
-      if (PER_BACKEND_FUNCS[key].isHeartbeat(alert)) {
-        console.log("got heartbeat");
-        alert.references[0].split(" ").forEach(async ref => {
-          // all requests are sent out concurrently
-          let [json, rawXml] = await PER_BACKEND_FUNCS[key].fetchOldAlert(ref);
-          if (!json) return;
-          //console.log(json);
-          gotAlert(json, rawXml, json.id, "heartbeat-link");
-        });
-      } else {
-        const id = alert.identifier[0];
-        let source = "main";
-        if (server.host.includes("streaming2")) source = "backup";     
-        gotAlert(parseAlertJson(alert), pendingXml, id, source);
-        pendingXml = "";
-      }
+      const id = alert.identifier[0];
+      let source = "main";
+      if (server.host.includes("streaming2")) source = "backup";     
+      gotAlert(parseAlertJson(alert), pendingXml, id, source, key);
+      pendingXml = "";
     });
     socket.on("connect", () => {
       console.log("Streaming", key, "alerts from", server.host + ":" + server.port);
