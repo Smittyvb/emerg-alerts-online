@@ -30,6 +30,7 @@ port updateConnectionStatus : (String -> msg) -> Sub msg
 
 type alias FlagData =
     { language : String
+    , now : Int
     }
 
 
@@ -54,7 +55,7 @@ subscriptions _ =
     Sub.batch
         [ updateAlerts UpdateAlerts
         , updateConnectionStatus UpdateConnectionStatus
-        , Time.every 1000 Tick
+        , Time.every 30000 Tick
         ]
 
 
@@ -566,7 +567,7 @@ init flags url key =
       , search = ""
       , language = flags.language
       , timeZone = Time.utc
-      , time = Time.millisToPosix 0
+      , time = Time.millisToPosix flags.now
       }
     , Task.perform TimeZone Time.here
     )
@@ -741,7 +742,7 @@ dateEle zone time now =
     let
         posix = Time.millisToPosix time
     in
-        div
+        span
             [ Html.Attributes.title <| fullDateFormatter zone posix ]
             [ text <| relativeTime now posix
             ]
@@ -755,7 +756,7 @@ alertDiv alert lang zone now =
                     [ h3 [ class "alert-title" ] [ text <| alertTitle info ]
                     , div 
                         [ class "alert-sender" ]
-                        [ text <| "Sent by: " ++ alert.sender ++ " at "
+                        [ text <| "Sent by " ++ alert.sender ++ " "
                         , dateEle zone alert.sent now]
                     , div [ class "alert-instructions" ]
                         [ case info.instruction of

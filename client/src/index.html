@@ -22,6 +22,7 @@
         let app = Elm.Main.init({
           flags: {
             language: getLang(),
+            now: Date.now(),
           }
         });
         window.app = app;
