@@ -600,8 +600,9 @@ update msg model =
                             Ok x ->
                                 List.map (\a -> SomeAlert a) x
 
-                            Err _ ->
-                                []
+                            Err err ->
+                                -- this is a hack to log the error then
+                                Tuple.first ([], log "decoding error" err)
                         ]
               }
             , Cmd.none
