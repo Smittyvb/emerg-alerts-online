@@ -17,6 +17,7 @@
           connectionStatus = n;
         }
       }
+      let knownAlerts = {};
       window.addEventListener("DOMContentLoaded", function () {
         let app = Elm.Main.init({
           flags: {
@@ -27,9 +28,10 @@
         let stream = new EventSource("http://100.115.92.204:8080/api/canada/event-stream");
         stream.onmessage = function(e) {
           // due to a bug, sometimes we see [], filter it
-          let alerts = JSON.parse(e.data).filter(x=>x.length !== 0);
+          let alerts = JSON.parse(e.data).filter(x => x.length !== 0);
           console.log(alerts);
-          app.ports.updateAlerts.send(alerts);
+          app.ports.updateAlerts.send(alerts.filter(a => !knownAlerts[a]));
+          alerts.forEach(a => knownAlerts[a] = true);
           updateConnectionStatus("Connected");
         };
         stream.onerror = function(e) {
