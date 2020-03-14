@@ -54,3 +54,9 @@ header {
 .alert-title {
     margin: 0;
 }
+
+.connection-status {
+    float: right;
+    margin-top: .95em;
+    margin-right: 1em;
+}

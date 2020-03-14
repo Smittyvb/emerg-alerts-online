@@ -1,4 +1,4 @@
-port module Main exposing (updateAlerts)
+port module Main exposing (updateAlerts, updateConnectionStatus)
 
 import Browser
 import Browser.Navigation as Nav
@@ -6,6 +6,7 @@ import Debug exposing (log)
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (class, href, id)
+import Html.Lazy exposing (lazy2)
 import Json.Decode as D
 import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
 import List
@@ -18,6 +19,7 @@ import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
 
 
 port updateAlerts : (D.Value -> msg) -> Sub msg
+port updateConnectionStatus : (String -> msg) -> Sub msg
 
 
 type alias FlagData =
@@ -43,7 +45,10 @@ main =
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
-    updateAlerts UpdateAlerts
+    Sub.batch
+    [ updateAlerts UpdateAlerts
+    , updateConnectionStatus UpdateConnectionStatus
+    ]
 
 
 
@@ -507,6 +512,7 @@ alertInfoDecoder =
         |> required "resources" (D.list alertResourceDecoder)
         |> hardcoded [] -- TODO: fix
 
+
 alertDecoder : D.Decoder Alert
 alertDecoder =
     D.succeed Alert
@@ -525,7 +531,7 @@ alertDecoder =
         |> requiredAt [ "alert", "note" ] oStringDecoder
         |> requiredAt [ "alert", "incidents" ] oStringDecoder
         |> requiredAt [ "alert", "infos" ] (D.list alertInfoDecoder)
-        |> hardcoded []  -- TODO: fix
+        |> hardcoded [] -- TODO: fix
 
 
 alertListDecoder : D.Decoder (List Alert)
@@ -552,6 +558,7 @@ type Msg
     | UrlChanged Url.Url
     | SearchChange String
     | UpdateAlerts D.Value
+    | UpdateConnectionStatus String
 
 
 genSearchUrl : String -> String
@@ -587,6 +594,7 @@ update msg model =
                 | alerts =
                     List.concat
                         [ model.alerts
+
                         --, case log "decodeVal" (D.decodeValue alertListDecoder newAlerts) of
                         , case D.decodeValue alertListDecoder newAlerts of
                             Ok x ->
@@ -596,6 +604,16 @@ update msg model =
                                 []
                         ]
               }
+            , Cmd.none
+            )
+
+        UpdateConnectionStatus newStatus ->
+            ( { model | connectionStatus = case newStatus of
+                    "Connected" -> Connected
+                    "Connecting" -> Connecting
+                    "Disconnected" -> Disconnected
+                    _ -> Disconnected -- hack, so I don't need error handling here
+                }
             , Cmd.none
             )
 
@@ -614,14 +632,15 @@ viewLink name path =
     a [ href path, class "header-link" ] [ text name ]
 
 
-headerEle : Model -> Html Msg
-headerEle model =
+headerEle : ConnectionStatus -> Int -> Html Msg
+headerEle status lastUpdate =
     header []
         [ h1 [ id "header-title" ]
             [ viewLink websiteName "/"
             ]
         , viewLink "FAQ" "/faq"
         , viewLink "About" "/about"
+        , connectionStatusEle status
         ]
 
 
@@ -661,18 +680,18 @@ alertFinderWidget model =
 genAlertHtml : AlertOrError -> Html Msg
 genAlertHtml maybeAlert =
     case maybeAlert of
-       SomeAlert alert ->
+        SomeAlert alert ->
             div [ class "alert" ] [ text alert.id ]
 
-       InvalidAlert err ->
+        InvalidAlert err ->
             div [ class "alert" ] [ text <| "error parsing alert: " ++ err ]
 
 
-connectionStatusEle : Model -> Html Msg
-connectionStatusEle model =
+connectionStatusEle : ConnectionStatus -> Html Msg
+connectionStatusEle status =
     div [ class "connection-status" ]
         [ text
-            (case model.connectionStatus of
+            (case status of
                 Connecting ->
                     "Connecting..."
 
@@ -696,7 +715,7 @@ view model =
     { title = "AlertReady viewer"
     , body =
         [ div [ class "elm-root" ]
-            [ headerEle model
+            [ lazy2 headerEle model.connectionStatus model.lastUpdate
             , div [ id "content" ]
                 (case Parser.parse route model.url of
                     Just About ->

@@ -10,6 +10,13 @@
       function getLang() {
         return navigator.language.split("-")[0];
       }
+      let connectionStatus = "Connecting";
+      function updateConnectionStatus(n) {
+        if (n !== connectionStatus) {
+          app.ports.updateConnectionStatus.send(n);
+          connectionStatus = n;
+        }
+      }
       window.addEventListener("DOMContentLoaded", function () {
         let app = Elm.Main.init({
           flags: {
@@ -21,7 +28,12 @@
         stream.onmessage = function(e) {
           // due to a bug, sometimes we see [], filter it
           let alerts = JSON.parse(e.data).filter(x=>x.length !== 0);
+          console.log(alerts);
           app.ports.updateAlerts.send(alerts);
+          updateConnectionStatus("Connected");
+        };
+        stream.onerror = function(e) {
+          updateConnectionStatus("Disconnected");
         };
       });
     </script>
