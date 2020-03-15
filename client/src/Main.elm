@@ -2,12 +2,14 @@ port module Main exposing (updateAlerts, updateConnectionStatus)
 
 import Browser
 import Browser.Navigation as Nav
+import DateFormat
+import DateFormat.Relative exposing (relativeTime)
 import Debug exposing (log)
 import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (class, href, id)
-import Html.Lazy exposing (lazy2)
 import Html.Events exposing (onClick)
+import Html.Lazy exposing (lazy2)
 import Json.Decode as D
 import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
 import List
@@ -15,8 +17,6 @@ import Task
 import Time
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
-import DateFormat
-import DateFormat.Relative exposing (relativeTime)
 
 
 
@@ -72,6 +72,25 @@ type MsgType
     | Error
 
 
+stringifyMsgType : MsgType -> String
+stringifyMsgType x =
+    case x of
+        Alert_ ->
+            "Alert"
+
+        Update ->
+            "Update"
+
+        Cancel ->
+            "Cancel"
+
+        Ack ->
+            "Acknowledgement"
+
+        Error ->
+            "Error"
+
+
 type MsgStatus
     = Actual
     | Exercise
@@ -80,11 +99,43 @@ type MsgStatus
     | Draft
 
 
+stringifyMsgStatus : MsgStatus -> String
+stringifyMsgStatus x =
+    case x of
+        Actual ->
+            "Actual"
+
+        Exercise ->
+            "Exercise"
+
+        System ->
+            "System"
+
+        Test ->
+            "Test"
+
+        Draft ->
+            "Draft"
+
+
 type MsgScope
     = Public
       -- really, we should only see Public alerts since all alerts are public in Canada
     | Restricted
     | Private
+
+
+stringifyMsgScope : MsgScope -> String
+stringifyMsgScope x =
+    case x of
+        Public ->
+            "Public"
+
+        Restricted ->
+            "Restricted"
+
+        Private ->
+            "Private"
 
 
 type alias AlertResource =
@@ -122,6 +173,46 @@ type AlertInfoCategory
     | Other
 
 
+stringifyAlertInfoCategory : AlertInfoCategory -> String
+stringifyAlertInfoCategory x =
+    case x of
+        Geo ->
+            "Geographic"
+
+        Met ->
+            "Meterological"
+
+        Safety ->
+            "Safety"
+
+        Security ->
+            "Security"
+
+        Rescue ->
+            "Rescue"
+
+        Fire ->
+            "Fire"
+
+        Health ->
+            "Health"
+
+        Env ->
+            "Enviroment"
+
+        Transport ->
+            "Transport"
+
+        Infra ->
+            "Infrastructure"
+
+        CBRNE ->
+            "CBRNE (Chemical, Biological, Radiological, Nuclear, and Explosive materials)"
+
+        Other ->
+            "Other"
+
+
 type AlertInfoResponseType
     = Shelter
     | Evacuate
@@ -134,12 +225,62 @@ type AlertInfoResponseType
     | None
 
 
+stringifyAlertInfoResponseType : AlertInfoResponseType -> String
+stringifyAlertInfoResponseType x =
+    case x of
+        Shelter ->
+            "Shelter"
+
+        Evacuate ->
+            "Evacuate"
+
+        Prepare ->
+            "Prepare"
+
+        Execute ->
+            "Execute"
+
+        Avoid ->
+            "Avoid"
+
+        Monitor ->
+            "Monitor"
+
+        Assess ->
+            "Assess"
+
+        AllClear ->
+            "All clear"
+
+        None ->
+            ""
+
+
 type AlertInfoUrgency
     = Immediate
     | Expected
     | Future
     | Past
     | Unknown
+
+
+stringifyAlertInfoUrgency : AlertInfoUrgency -> String
+stringifyAlertInfoUrgency x =
+    case x of
+        Immediate ->
+            "Immediate"
+
+        Expected ->
+            "Expected"
+
+        Future ->
+            "Future"
+
+        Past ->
+            "Past"
+
+        Unknown ->
+            ""
 
 
 type AlertInfoSeverity
@@ -150,6 +291,25 @@ type AlertInfoSeverity
     | UnknownSeverity
 
 
+stringifyAlertInfoSeverity : AlertInfoSeverity -> String
+stringifyAlertInfoSeverity x =
+    case x of
+        Extreme ->
+            "Extreme"
+
+        Severe ->
+            "Severe"
+
+        Moderate ->
+            "Moderate"
+
+        Minor ->
+            "Minor"
+
+        UnknownSeverity ->
+            ""
+
+
 type AlertInfoCertainty
     = Observed
       -- For backward compatibility with CAP 1.0, the deprecated value of “Very Likely” SHOULD be
@@ -158,6 +318,25 @@ type AlertInfoCertainty
     | Possible
     | Unlikely
     | UnknownCertainty
+
+
+stringifyAlertInfoCertainty : AlertInfoCertainty -> String
+stringifyAlertInfoCertainty x =
+    case x of
+        Observed ->
+            "Observed"
+
+        Likely ->
+            "Likely"
+
+        Possible ->
+            "Possible"
+
+        Unlikely ->
+            "Unlikely"
+
+        UnknownCertainty ->
+            ""
 
 
 type alias AlertInfo =
@@ -747,47 +926,77 @@ fullDateFormatter =
 dateEle : Time.Zone -> Int -> Time.Posix -> Html Msg
 dateEle zone time now =
     let
-        posix = Time.millisToPosix time
+        posix =
+            Time.millisToPosix time
     in
-        span
-            [ Html.Attributes.title <| fullDateFormatter zone posix ]
-            [ text <| relativeTime now posix
-            ]
+    span
+        [ Html.Attributes.title <| fullDateFormatter zone posix ]
+        [ text <| relativeTime now posix
+        ]
 
 
 langToString : String -> String
-langToString lang = case String.left 2 lang of
-    "en"  -> "English"
-    "fr"  -> "French"
-    "iku" -> "Inuktitut"
-    "iu"  -> "Inuktitut"
-    "ike" -> "Inuktitut"
-    "ikt" -> "Inuinnaqtun"
-    other -> other
+langToString lang =
+    case String.left 2 lang of
+        "en" ->
+            "English"
+
+        "fr" ->
+            "French"
+
+        "iku" ->
+            "Inuktitut"
+
+        "iu" ->
+            "Inuktitut"
+
+        "ike" ->
+            "Inuktitut"
+
+        "ikt" ->
+            "Inuinnaqtun"
+
+        other ->
+            other
 
 
 langSelector : List AlertInfo -> Html Msg
 langSelector infos =
-    div 
-        [ class "lang-selector"]
-        ( infos
+    div
+        [ class "lang-selector" ]
+        (infos
             |> List.map (\a -> a.language)
-            |> List.map (\a -> div [ class "lang-selector-lang", onClick <| UpdateLanguage a ] [ text <| langToString a ] )
+            |> List.map (\a -> div [ class "lang-selector-lang", onClick <| UpdateLanguage a ] [ text <| langToString a ])
         )
+
 
 alertKey : Maybe String -> String -> Html Msg
 alertKey key name =
     let
-        lowerName = String.toLower name
-        normalizedName = String.replace " " "-" lowerName
-    in
-        div [ class <| "alert-" ++ normalizedName ]
-            (case key of
-                Just x ->
-                    [ span [ class "alert-label" ] [ text <| name ++ ": " ], text x ]
+        lowerName =
+            String.toLower name
 
-                Nothing ->
-                    [ span [ class <| "no-" ++ normalizedName ] [ text <| "No " ++ lowerName ++ " provided." ] ])
+        normalizedName =
+            String.replace " " "-" lowerName
+    in
+    case key of
+        Just "" ->
+            span [] []
+
+        Nothing ->
+            span [] []
+
+        Just x ->
+            let
+                content =
+                    if String.left 4 x == "http" then
+                        a [ href x, Html.Attributes.target "_blank" ] [ text x ]
+
+                    else
+                        text x
+            in
+            div [ class <| "alert-" ++ normalizedName ] [ span [ class "alert-label" ] [ text <| name ++ ": " ], content ]
+
 
 alertDiv : Alert -> String -> Time.Zone -> Time.Posix -> Html Msg
 alertDiv alert lang zone now =
@@ -797,24 +1006,33 @@ alertDiv alert lang zone now =
                 div []
                     [ h3 [ class "alert-title" ] [ text <| alertTitle info ]
                     , langSelector alert.infos
-                    , div 
+                    , div
                         [ class "alert-sender" ]
-                        [ text <| "Sent by " ++ alert.sender ++ " "
-                        , dateEle zone alert.sent now]
+                        [ text "Sent "
+                        , dateEle zone alert.sent now
+                        , text <| " by " ++ alert.sender ++ " "
+                        ]
                     , alertKey info.instruction "Instructions"
                     , alertKey info.description "Description"
-                    , alertKey info.contact "Contactc"
+                    , alertKey info.contact "Contact"
+                    , alertKey alert.source "Source"
+                    , alertKey info.web "Website"
+
+                    --, alertKey alert.type (Maybe.map )
                     ]
 
             Nothing ->
-                div [ class "no-lang-data" ] 
+                div [ class "no-lang-data" ]
                     [ langSelector alert.infos
                     , case List.head alert.infos of
                         Just _ ->
                             text <| "There is no data for this alert in " ++ lang ++ "."
+
                         Nothing ->
-                            text <| 
-                                "There is no data for this alert in " ++ lang ++ ", or any other language." 
+                            text <|
+                                "There is no data for this alert in "
+                                    ++ lang
+                                    ++ ", or any other language."
                     ]
         ]
 
@@ -885,14 +1103,17 @@ view model =
 
                               else
                                 model.alerts
-                                    |> List.sortBy (\a -> case a of
-                                        SomeAlert alert ->
-                                            -alert.sent
-                                    
-                                        InvalidAlert _ ->
-                                            round (1 / (-0)) -- hack to get negative infinity
-                                    )
-                                    |> List.map (genAlertHtml model.language model.timeZone model.time) 
+                                    |> List.sortBy
+                                        (\a ->
+                                            case a of
+                                                SomeAlert alert ->
+                                                    -alert.sent
+
+                                                InvalidAlert _ ->
+                                                    round (1 / 0)
+                                         -- hack to get negative infinity
+                                        )
+                                    |> List.map (genAlertHtml model.language model.timeZone model.time)
                             ]
 
                     Nothing ->
