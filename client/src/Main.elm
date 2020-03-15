@@ -11,7 +11,7 @@ import Html.Attributes exposing (class, href, id)
 import Html.Events exposing (onClick)
 import Html.Lazy exposing (lazy2)
 import Json.Decode as D
-import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
+import Json.Decode.Pipeline exposing (hardcoded, required, requiredAt)
 import List
 import Task
 import Time
