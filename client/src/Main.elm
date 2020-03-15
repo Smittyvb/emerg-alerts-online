@@ -970,8 +970,8 @@ langSelector infos =
         )
 
 
-alertKey : Maybe String -> String -> Html Msg
-alertKey key name =
+alertKeyRaw : Html Msg -> String -> Html Msg
+alertKeyRaw content name =
     let
         lowerName =
             String.toLower name
@@ -979,61 +979,78 @@ alertKey key name =
         normalizedName =
             String.replace " " "-" lowerName
     in
+        div [ class <| "alert-" ++ normalizedName ] [ span [ class "alert-label" ] [ text <| name ++ ": " ], content ]
+
+
+alertKey : Maybe String -> String -> Html Msg
+alertKey key name =
     case key of
-        Just "" ->
-            span [] []
-
-        Nothing ->
-            span [] []
-
+        Nothing -> span [] []
+        Just "" -> span [] []
         Just x ->
-            let
-                content =
-                    if String.left 4 x == "http" then
-                        a [ href x, Html.Attributes.target "_blank" ] [ text x ]
+            alertKeyRaw
+                (if String.left 4 x == "http" then
+                    a [ href x, Html.Attributes.target "_blank" ] [ text x ]
 
-                    else
-                        text x
-            in
-            div [ class <| "alert-" ++ normalizedName ] [ span [ class "alert-label" ] [ text <| name ++ ": " ], content ]
+                else
+                    text x)
+                name
+
+
+alertKeyDate : Time.Zone -> Time.Posix -> Maybe Int -> String -> Html Msg
+alertKeyDate zone now time name =
+    case time of
+        Nothing -> span [] []
+        Just x ->
+            alertKeyRaw (dateEle zone x now) name
 
 
 alertDiv : Alert -> String -> Time.Zone -> Time.Posix -> Html Msg
 alertDiv alert lang zone now =
-    div [ class "alert" ]
-        [ case alertInfoForLang alert lang of
-            Just info ->
-                div []
-                    [ h3 [ class "alert-title" ] [ text <| alertTitle info ]
-                    , langSelector alert.infos
-                    , div
-                        [ class "alert-sender" ]
-                        [ text "Sent "
-                        , dateEle zone alert.sent now
-                        , text <| " by " ++ alert.sender ++ " "
+    let
+        date = alertKeyDate zone now
+    in
+        div [ class "alert" ]
+            [ case alertInfoForLang alert lang of
+                Just info ->
+                    div []
+                        [ h3 [ class "alert-title" ] [ text <| alertTitle info ]
+                        , langSelector alert.infos
+                        , div
+                            [ class "alert-sender" ]
+                            [ text "Sent "
+                            , dateEle zone alert.sent now
+                            , text <| " by " ++ alert.sender
+                            ]
+                        , date info.expires "Expires"
+                        , alertKey (Just (stringifyMsgScope alert.scope)) "Scope"
+                        , alertKey (Just (stringifyAlertInfoCategory info.category)) "Category"
+                        , alertKey (Maybe.map stringifyAlertInfoResponseType info.responseType) "Response type"
+                        , alertKey (Just (stringifyAlertInfoCertainty info.certainty)) "Certainty"
+                        , alertKey (Just (stringifyAlertInfoSeverity info.severity)) "Severity"
+                        , alertKey info.instruction "Instructions"
+                        , alertKey info.description "Description"
+                        , alertKey info.contact "Contact"
+                        , alertKey alert.source "Source"
+                        , alertKey info.web "Website"
+                        , alertKey info.audience "Audience"
+                        , alertKey info.contact "Contact"
+                        --, alertKey alert.type (Maybe.map )
                         ]
-                    , alertKey info.instruction "Instructions"
-                    , alertKey info.description "Description"
-                    , alertKey info.contact "Contact"
-                    , alertKey alert.source "Source"
-                    , alertKey info.web "Website"
 
-                    --, alertKey alert.type (Maybe.map )
-                    ]
+                Nothing ->
+                    div [ class "no-lang-data" ]
+                        [ langSelector alert.infos
+                        , case List.head alert.infos of
+                            Just _ ->
+                                text <| "There is no data for this alert in " ++ lang ++ "."
 
-            Nothing ->
-                div [ class "no-lang-data" ]
-                    [ langSelector alert.infos
-                    , case List.head alert.infos of
-                        Just _ ->
-                            text <| "There is no data for this alert in " ++ lang ++ "."
-
-                        Nothing ->
-                            text <|
-                                "There is no data for this alert in "
-                                    ++ lang
-                                    ++ ", or any other language."
-                    ]
+                            Nothing ->
+                                text <|
+                                    "There is no data for this alert in "
+                                        ++ lang
+                                        ++ ", or any other language."
+                        ]
         ]
 
 
