@@ -7,6 +7,7 @@ import Dict exposing (Dict)
 import Html exposing (..)
 import Html.Attributes exposing (class, href, id)
 import Html.Lazy exposing (lazy2)
+import Html.Events exposing (onClick)
 import Json.Decode as D
 import Json.Decode.Pipeline exposing (custom, hardcoded, required, requiredAt)
 import List
@@ -581,6 +582,7 @@ type Msg
     | UpdateConnectionStatus String
     | TimeZone Time.Zone
     | Tick Time.Posix
+    | UpdateLanguage String
 
 
 genSearchUrl : String -> String
@@ -658,6 +660,11 @@ update msg model =
 
         Tick newTime ->
             ( { model | time = newTime }
+            , Cmd.none
+            )
+
+        UpdateLanguage lang ->
+            ( { model | language = lang }
             , Cmd.none
             )
 
@@ -747,6 +754,41 @@ dateEle zone time now =
             [ text <| relativeTime now posix
             ]
 
+
+langToString : String -> String
+langToString lang = case String.left 2 lang of
+    "en"  -> "English"
+    "fr"  -> "French"
+    "iku" -> "Inuktitut"
+    "iu"  -> "Inuktitut"
+    "ike" -> "Inuktitut"
+    "ikt" -> "Inuinnaqtun"
+    other -> other
+
+
+langSelector : List AlertInfo -> Html Msg
+langSelector infos =
+    div 
+        [ class "lang-selector"]
+        ( infos
+            |> List.map (\a -> a.language)
+            |> List.map (\a -> div [ class "lang-selector-lang", onClick <| UpdateLanguage a ] [ text <| langToString a ] )
+        )
+
+alertKey : Maybe String -> String -> Html Msg
+alertKey key name =
+    let
+        lowerName = String.toLower name
+        normalizedName = String.replace " " "-" lowerName
+    in
+        div [ class <| "alert-" ++ normalizedName ]
+            (case key of
+                Just x ->
+                    [ span [ class "alert-label" ] [ text <| name ++ ": " ], text x ]
+
+                Nothing ->
+                    [ span [ class <| "no-" ++ normalizedName ] [ text <| "No " ++ lowerName ++ " provided." ] ])
+
 alertDiv : Alert -> String -> Time.Zone -> Time.Posix -> Html Msg
 alertDiv alert lang zone now =
     div [ class "alert" ]
@@ -754,22 +796,26 @@ alertDiv alert lang zone now =
             Just info ->
                 div []
                     [ h3 [ class "alert-title" ] [ text <| alertTitle info ]
+                    , langSelector alert.infos
                     , div 
                         [ class "alert-sender" ]
                         [ text <| "Sent by " ++ alert.sender ++ " "
                         , dateEle zone alert.sent now]
-                    , div [ class "alert-instructions" ]
-                        [ case info.instruction of
-                            Just x ->
-                                text x
-
-                            Nothing ->
-                                span [ class "no-instructions" ] [ text "No instructions provided." ]
-                        ]
+                    , alertKey info.instruction "Instructions"
+                    , alertKey info.description "Description"
+                    , alertKey info.contact "Contactc"
                     ]
 
             Nothing ->
-                div [ class "no-lang-data" ] [ text <| "There is no data for this alert in " ++ lang ]
+                div [ class "no-lang-data" ] 
+                    [ langSelector alert.infos
+                    , case List.head alert.infos of
+                        Just _ ->
+                            text <| "There is no data for this alert in " ++ lang ++ "."
+                        Nothing ->
+                            text <| 
+                                "There is no data for this alert in " ++ lang ++ ", or any other language." 
+                    ]
         ]
 
 

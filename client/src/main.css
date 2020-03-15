@@ -58,8 +58,18 @@ header {
 .alert-title {
     margin: 0;
 }
-.no-instructions {
+.alert-label {
+    font-weight: bold;
+}
+.no-instruction {
     font-style: italic;
+}
+
+.lang-selector-lang {
+    display: inline-block;
+    color: #1f3aff;
+    margin-right: 0.75rem;
+    cursor: pointer;
 }
 
 .connection-status {
