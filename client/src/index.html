@@ -5,8 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AlertReady viewer</title>
     <link href="/main.css" rel="stylesheet">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v1.8.0/mapbox-gl.css" rel="stylesheet" />
+    <script src="https://api.mapbox.com/mapbox-gl-js/v1.8.0/mapbox-gl.js"></script>
     <script src="/elm.js"></script>
     <script>
+      // should probably be some compile time constant
+      mapboxgl.accessToken = 'pk.eyJ1Ijoic21pdG9wIiwiYSI6ImNrN3Qxa2thcjBseWgzZXFyNHltYmZoY3kifQ.wkK2XWkuwMoxB8-gvAl6jA';
       function getLang() {
         return navigator.language.split("-")[0] + "-CA";
       }
@@ -42,7 +46,5 @@
       });
     </script>
   </head>
-  <body>
-    
-  </body>
+  <body></body>
 </html>
