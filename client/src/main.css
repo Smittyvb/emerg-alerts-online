@@ -2,6 +2,11 @@
     box-sizing: border-box;
 }
 
+:root {
+    --header-height: 3rem;
+    --header-bottom-margin: 1rem;
+}
+
 body {
     margin: 0;
     padding: 0;
@@ -12,7 +17,8 @@ body {
 header {
     background: #9cffff;
     color: #006363;
-    margin-bottom: 1rem;
+    margin-bottom: var(--header-bottom-margin);
+    height: var(--header-height);
 }
 
 .header-link {
@@ -77,4 +83,12 @@ header {
     float: right;
     margin-top: .95em;
     margin-right: 1em;
+}
+
+.mapboxgl-map {
+    position: absolute;
+    top: var(--header-height);
+    bottom: 0;
+    width: 100%;
+    height: calc(100% - var(--header-height));
 }

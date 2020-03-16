@@ -29,6 +29,12 @@ port updateAlerts : (D.Value -> msg) -> Sub msg
 port updateConnectionStatus : (String -> msg) -> Sub msg
 
 
+port updateMapData : (List (String, List String) -> msg) -> Sub msg
+
+
+port updateMapStatus : Bool -> Cmd msg
+
+
 type alias FlagData =
     { language : String
     , now : Int
@@ -788,9 +794,10 @@ update msg model =
                     ( model, Nav.load href )
 
         UrlChanged url ->
-            ( { model | url = url }
-            , Cmd.none
-            )
+            if url.path == "/map" then
+                ({ model | url = url }, updateMapStatus True)
+            else 
+                ({ model | url = url }, updateMapStatus False)
 
         UpdateAlerts newAlerts ->
             ( { model
@@ -868,6 +875,7 @@ headerEle status lastUpdate =
         [ h1 [ id "header-title" ]
             [ viewLink websiteName "/"
             ]
+        , viewLink "Map" "/map"
         , viewLink "FAQ" "/faq"
         , viewLink "About" "/about"
         , connectionStatusEle status
@@ -878,6 +886,7 @@ type Route
     = Search String
     | About
     | Faq
+    | Map
 
 
 route : Parser (Route -> a) a
@@ -888,6 +897,7 @@ route =
         , Parser.map About (Parser.s "about")
         , Parser.map Faq (Parser.s "faq")
         , Parser.map Search (Parser.s "alert" </> Parser.string)
+        , Parser.map Map (Parser.s "map")
         ]
 
 
@@ -1104,6 +1114,9 @@ view model =
     , body =
         [ div [ class "elm-root" ]
             [ lazy2 headerEle model.connectionStatus model.lastUpdate
+            , node "world-map"
+                []
+                []
             , div [ id "content" ]
                 (case Parser.parse route model.url of
                     Just About ->
@@ -1111,6 +1124,9 @@ view model =
 
                     Just Faq ->
                         [ subheader "FAQ" ]
+
+                    Just Map ->
+                        [] -- TODO
 
                     Just (Search _) ->
                         List.concat

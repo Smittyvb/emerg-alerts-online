@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AlertReady viewer</title>
-    <link href="/main.css" rel="stylesheet">
     <link href="https://api.mapbox.com/mapbox-gl-js/v1.8.0/mapbox-gl.css" rel="stylesheet" />
+    <link href="/main.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v1.8.0/mapbox-gl.js"></script>
     <script src="/elm.js"></script>
     <script>
@@ -21,13 +21,32 @@
           connectionStatus = n;
         }
       }
-      let knownAlerts = {};
+      class WorldMap extends HTMLElement {
+        connectedCallback() {
+          console.log("<world-map> created");
+          let map = new mapboxgl.Map({
+            container: this,
+            style: "mapbox://styles/smitop/ck7t6xcly0l2i1irwrgja99sp",
+            center: [-68.13734351262877, 45.137451890638886],
+            zoom: 5,
+            hash: true,
+            locale: getLang(),
+          });
+          map.addControl(new mapboxgl.FullscreenControl());
+          map.addControl(new mapboxgl.NavigationControl());
+        }
+      }
+      customElements.define("world-map", WorldMap);
       window.addEventListener("DOMContentLoaded", function () {
         let app = Elm.Main.init({
           flags: {
             language: getLang(),
             now: Date.now(),
-          }
+          },
+          node: document.getElementById("elm-container"),
+        });
+        app.ports.updateMapStatus.subscribe(status => {
+          console.log("Status", status);
         });
         window.app = app;
         let stream = new EventSource("http://100.115.92.204:8080/api/canada/event-stream");
@@ -46,5 +65,8 @@
       });
     </script>
   </head>
-  <body></body>
+  <body>
+    <div id="elm-container"></div>
+    <div id="alerts-map"></div>
+  </body>
 </html>
