@@ -79,7 +79,7 @@ const PER_BACKEND_FUNCS = {
 let alerts = {};
 
 function parseKeyvalArray(arr) {
-  if (!arr) return [];
+  if (!arr) return {};
   let obj = {};
   arr.forEach(keyVal => {
     let key = keyVal.valueName[0];
@@ -134,7 +134,14 @@ function parseAlertJson(alert) {
         derefUri: r.derefUri ? r.derefUri[0] : null,
         digest: r.digest ? r.digest[0] : null,    
       })),
-      areas: [], // TODO
+      areas: (i.area || []).map(area => ({
+        areaDesc: area.areaDesc[0],
+        polygon: area.polygon ? area.polygon[0] : null,
+        circle: area.circle ? area.circle[0] : null,
+        geocodes: parseKeyvalArray(area.geocodes),
+        altitude: area.altitude ? parseInt(area.altitude[0], 10) : null,
+        ceiling: area.ceiling ? parseInt(area.ceiling[0], 10) : null
+      })), // TODO
     })),
     signatures: [], // TODO
   };

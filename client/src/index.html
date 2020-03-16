@@ -27,26 +27,73 @@
           let map = new mapboxgl.Map({
             container: this,
             style: "mapbox://styles/smitop/ck7t6xcly0l2i1irwrgja99sp",
-            center: [-68.13734351262877, 45.137451890638886],
-            zoom: 5,
+            center: [-105.42, 61.69],
+            zoom: 2.38,
             hash: true,
             locale: getLang(),
           });
           map.addControl(new mapboxgl.FullscreenControl());
           map.addControl(new mapboxgl.NavigationControl());
+          this._sources = [];
+          this._map = map;
+        }
+        setPolygons(alerts) {
+          console.log("Updating map polygons");
+          this._sources.forEach(source => {
+            this._map.removeSource(source);
+            this._map.removeLayer(source);
+          });
+          this._sources = [];
+          alerts.forEach(([id, areas]) => {
+            this._sources.push(id);
+            this._map.addSource(id, {
+              type: "geojson",
+              data: {
+                type: "Feature",
+                geometry: {
+                  type: "Polygon",
+                  coordinates:
+                    areas.map(data => 
+                      data.polygon.split(" ")
+                      .map(x => x.split(","))
+                      .map(([lat, long]) =>   [parseFloat(long), parseFloat(lat)])
+                    )
+                }
+              }
+            });
+            this._map.addLayer({
+              id,
+              type: "fill",
+              source: id,
+              layout: {},
+              paint: {
+                "fill-color": "#088",
+                "fill-opacity": 0.8
+              }
+            })
+          });
         }
       }
       customElements.define("world-map", WorldMap);
+      let knownAlerts = {};
       window.addEventListener("DOMContentLoaded", function () {
         let app = Elm.Main.init({
           flags: {
             language: getLang(),
             now: Date.now(),
           },
-          node: document.getElementById("elm-container"),
         });
-        app.ports.updateMapStatus.subscribe(status => {
-          console.log("Status", status);
+        function setMapData(ele, status) {
+          ele.setPolygons(status);
+        }
+        let pendingMapData = null;
+        app.ports.updateMapPolygons.subscribe(status => {
+          let mapEle = document.getElementsByTagName("world-map");
+          if (mapEle[0]) {
+            setMapData(mapEle[0], status);
+          } else {
+            pendingMapData = status;
+          }
         });
         window.app = app;
         let stream = new EventSource("http://100.115.92.204:8080/api/canada/event-stream");
@@ -65,8 +112,5 @@
       });
     </script>
   </head>
-  <body>
-    <div id="elm-container"></div>
-    <div id="alerts-map"></div>
-  </body>
+  <body></body>
 </html>

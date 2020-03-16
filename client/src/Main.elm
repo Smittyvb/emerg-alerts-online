@@ -32,7 +32,13 @@ port updateConnectionStatus : (String -> msg) -> Sub msg
 port updateMapData : (List (String, List String) -> msg) -> Sub msg
 
 
-port updateMapStatus : Bool -> Cmd msg
+port updateMapPolygons : (List (String, List
+    { areaDesc : String
+    , polygon : Maybe String
+    , circle : Maybe String
+    , altitude : Maybe Int
+    , ceiling : Maybe Int
+    })) -> Cmd msg
 
 
 type alias FlagData =
@@ -159,8 +165,8 @@ type alias AlertArea =
     , polygon : Maybe String
     , circle : Maybe String
     , geocodes : Dict String String
-    , altitude : Int
-    , ceiling : Int
+    , altitude : Maybe Int
+    , ceiling : Maybe Int
     }
 
 
@@ -420,6 +426,7 @@ type alias Model =
     , language : String
     , timeZone : Time.Zone
     , time : Time.Posix
+    , mapEverShown : Bool
     }
 
 
@@ -683,6 +690,18 @@ alertResourceDecoder =
         |> required "digest" oStringDecoder
 
 
+alertAreaDecoder : D.Decoder AlertArea
+alertAreaDecoder =
+    D.succeed AlertArea
+        |> required "areaDesc" D.string
+        |> required "polygon" oStringDecoder
+        |> required "circle" oStringDecoder
+        |> required "geocodes" (D.dict D.string)
+        |> required "altitude" (D.nullable D.int)
+        |> required "ceiling" (D.nullable D.int)
+
+        
+
 alertInfoDecoder : D.Decoder AlertInfo
 alertInfoDecoder =
     D.succeed AlertInfo
@@ -706,7 +725,7 @@ alertInfoDecoder =
         |> required "contact" oStringDecoder
         |> required "parameters" (D.dict D.string)
         |> required "resources" (D.list alertResourceDecoder)
-        |> hardcoded []
+        |> required "areas" (D.list alertAreaDecoder)
 
 
 
@@ -754,6 +773,7 @@ init flags url key =
       , language = flags.language
       , timeZone = Time.utc
       , time = Time.millisToPosix flags.now
+      , mapEverShown = url.path == "/map"
       }
     , Task.perform TimeZone Time.here
     )
@@ -795,13 +815,13 @@ update msg model =
 
         UrlChanged url ->
             if url.path == "/map" then
-                ({ model | url = url }, updateMapStatus True)
+                ({ model | url = url, mapEverShown = True }, Cmd.none)
             else 
-                ({ model | url = url }, updateMapStatus False)
+                ({ model | url = url }, Cmd.none)
 
         UpdateAlerts newAlerts ->
-            ( { model
-                | alerts =
+            let
+                newAlertsList =
                     List.concat
                         [ model.alerts
 
@@ -814,8 +834,26 @@ update msg model =
                                 -- this is a hack to log the error then
                                 Tuple.first ( [], log "decoding error" err )
                         ]
-              }
-            , Cmd.none
+            in
+            ( { model | alerts = newAlertsList }
+            , updateMapPolygons <| List.filterMap (\x -> case x of
+                InvalidAlert _ ->
+                    Nothing
+
+                SomeAlert a ->
+                    case List.head a.infos of
+                        Just h ->
+                            Just (a.id, List.map (\area ->
+                                { areaDesc = area.areaDesc
+                                , polygon = area.polygon
+                                , circle = area.circle
+                                , altitude = area.altitude
+                                , ceiling = area.ceiling
+                                }
+                            ) h.areas)
+                        Nothing ->
+                            Nothing
+                ) newAlertsList
             )
 
         UpdateConnectionStatus newStatus ->
@@ -1110,48 +1148,63 @@ connectionStatusEle status =
 
 view : Model -> Browser.Document Msg
 view model =
-    { title = "AlertReady viewer"
-    , body =
-        [ div [ class "elm-root" ]
-            [ lazy2 headerEle model.connectionStatus model.lastUpdate
-            , node "world-map"
-                []
-                []
-            , div [ id "content" ]
-                (case Parser.parse route model.url of
-                    Just About ->
-                        [ subheader "About" ]
-
-                    Just Faq ->
-                        [ subheader "FAQ" ]
-
-                    Just Map ->
-                        [] -- TODO
-
-                    Just (Search _) ->
-                        List.concat
-                            [ [ alertFinderWidget model ]
-                            , if List.length model.alerts == 0 then
-                                [ div [ class "no-alerts" ] [ text "No alerts found." ] ]
-
-                              else
-                                model.alerts
-                                    |> List.sortBy
-                                        (\a ->
-                                            case a of
-                                                SomeAlert alert ->
-                                                    -alert.sent
-
-                                                InvalidAlert _ ->
-                                                    round (1 / 0)
-                                         -- hack to get negative infinity
-                                        )
-                                    |> List.map (genAlertHtml model.language model.timeZone model.time)
+    let
+        routedUrl = Parser.parse route model.url
+        onMapPage = case routedUrl of
+            Just Map ->
+                True
+            _ ->
+                False
+    in
+        { title = "AlertReady viewer"
+        , body =
+            [ div [ class "elm-root" ]
+                [ lazy2 headerEle model.connectionStatus model.lastUpdate
+                , 
+                    if model.mapEverShown then
+                        node "world-map"
+                            [ Html.Attributes.style "display" (if onMapPage then "block" else "none")
+                            , id "alert-map"
                             ]
+                            []
+                    else
+                        span [] []
 
-                    Nothing ->
-                        [ subheader "Not found" ]
-                )
+                , div [ id "content" ]
+                    (case routedUrl of
+                        Just About ->
+                            [ subheader "About" ]
+
+                        Just Faq ->
+                            [ subheader "FAQ" ]
+
+                        Just Map ->
+                            [] -- TODO
+
+                        Just (Search _) ->
+                            List.concat
+                                [ [ alertFinderWidget model ]
+                                , if List.length model.alerts == 0 then
+                                    [ div [ class "no-alerts" ] [ text "No alerts found." ] ]
+
+                                else
+                                    model.alerts
+                                        |> List.sortBy
+                                            (\a ->
+                                                case a of
+                                                    SomeAlert alert ->
+                                                        -alert.sent
+
+                                                    InvalidAlert _ ->
+                                                        round (1 / 0)
+                                            -- hack to get negative infinity
+                                            )
+                                        |> List.map (genAlertHtml model.language model.timeZone model.time)
+                                ]
+
+                        Nothing ->
+                            [ subheader "Not found" ]
+                    )
+                ]
             ]
-        ]
-    }
+        }
