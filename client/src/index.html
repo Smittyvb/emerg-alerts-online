@@ -10,6 +10,7 @@
     <script src="/elm.js"></script>
     <script>
       // should probably be some compile time constant
+      if (!navigator.onLine) alert("You are offline. This won't work right.")
       mapboxgl.accessToken = 'pk.eyJ1Ijoic21pdG9wIiwiYSI6ImNrN3Qxa2thcjBseWgzZXFyNHltYmZoY3kifQ.wkK2XWkuwMoxB8-gvAl6jA';
       function getLang() {
         return navigator.language.split("-")[0] + "-CA";
@@ -53,11 +54,13 @@
                 geometry: {
                   type: "Polygon",
                   coordinates:
-                    areas.map(data => 
-                      data.polygon.split(" ")
-                      .map(x => x.split(","))
-                      .map(([lat, long]) =>   [parseFloat(long), parseFloat(lat)])
-                    )
+                    [].concat.apply([], areas.map(data => 
+                      data.polygon.map(polygon =>
+                         polygon.split(" ")
+                          .map(x => x.split(","))
+                          .map(([lat, long]) => [parseFloat(long), parseFloat(lat)])
+                      )
+                    ))
                 }
               }
             });
@@ -68,7 +71,7 @@
               layout: {},
               paint: {
                 "fill-color": "#088",
-                "fill-opacity": 0.8
+                "fill-opacity": 0.3333333333
               }
             })
           });
@@ -112,5 +115,10 @@
       });
     </script>
   </head>
-  <body></body>
+  <body>
+    <noscript style="font-size: 2rem;padding: 1rem;display: block;">
+      Sorry, you need to enable JavaScript to view alerts. Maybe in the future I'll add some
+      server-side rendering, but don't get your hopes up.
+    </noscript>
+  </body>
 </html>

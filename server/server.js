@@ -136,8 +136,8 @@ function parseAlertJson(alert) {
       })),
       areas: (i.area || []).map(area => ({
         areaDesc: area.areaDesc[0],
-        polygon: area.polygon ? area.polygon[0] : null,
-        circle: area.circle ? area.circle[0] : null,
+        polygon: area.polygon || [],
+        circle: area.circle || [],
         geocodes: parseKeyvalArray(area.geocodes),
         altitude: area.altitude ? parseInt(area.altitude[0], 10) : null,
         ceiling: area.ceiling ? parseInt(area.ceiling[0], 10) : null

@@ -34,8 +34,8 @@ port updateMapData : (List (String, List String) -> msg) -> Sub msg
 
 port updateMapPolygons : (List (String, List
     { areaDesc : String
-    , polygon : Maybe String
-    , circle : Maybe String
+    , polygon : List String
+    , circle : List String
     , altitude : Maybe Int
     , ceiling : Maybe Int
     })) -> Cmd msg
@@ -162,8 +162,8 @@ type alias AlertResource =
 
 type alias AlertArea =
     { areaDesc : String
-    , polygon : Maybe String
-    , circle : Maybe String
+    , polygon : List String
+    , circle : List String
     , geocodes : Dict String String
     , altitude : Maybe Int
     , ceiling : Maybe Int
@@ -694,8 +694,8 @@ alertAreaDecoder : D.Decoder AlertArea
 alertAreaDecoder =
     D.succeed AlertArea
         |> required "areaDesc" D.string
-        |> required "polygon" oStringDecoder
-        |> required "circle" oStringDecoder
+        |> required "polygon" (D.list D.string)
+        |> required "circle" (D.list D.string)
         |> required "geocodes" (D.dict D.string)
         |> required "altitude" (D.nullable D.int)
         |> required "ceiling" (D.nullable D.int)
