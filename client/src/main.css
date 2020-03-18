@@ -92,3 +92,12 @@ header {
     width: 100%;
     height: calc(100% - var(--header-height));
 }
+
+.faq {
+    margin-bottom: 1rem;
+}
+.faq-q {
+    font-weight: bold;
+    margin-bottom: 4px;
+    font-size: 1.05rem;
+}

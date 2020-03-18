@@ -17,6 +17,7 @@ import Task
 import Time
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
+import Faq exposing (faqEle)
 
 
 
@@ -915,7 +916,7 @@ headerEle status lastUpdate =
             ]
         , viewLink "Map" "/map"
         , viewLink "FAQ" "/faq"
-        , viewLink "About" "/about"
+        --, viewLink "About" "/about"
         , connectionStatusEle status
         ]
 
@@ -1176,7 +1177,7 @@ view model =
                             [ subheader "About" ]
 
                         Just Faq ->
-                            [ subheader "FAQ" ]
+                            [ subheader "FAQ", faqEle ]
 
                         Just Map ->
                             [] -- TODO
