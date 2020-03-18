@@ -92,6 +92,23 @@ world-map {
     width: 100%;
     height: calc(100% - var(--header-height));
 }
+.leaflet-popup-content {
+    margin: 0;
+}
+.leaflet-popup-content-wrapper {
+    padding: 0;
+    border-radius: 16px;
+    position: relative;
+    top: 14px;
+}
+.leaflet-container a.leaflet-popup-close-button {
+    color: #046969;
+}
+.leaflet-popup-tip {
+    background: #93ffff;
+    border: 2px solid #68a2a2;
+    box-shadow: none;
+}
 
 .faq {
     margin-bottom: 1rem;
@@ -100,4 +117,11 @@ world-map {
     font-weight: bold;
     margin-bottom: 4px;
     font-size: 1.05rem;
+}
+
+.filter-widget {
+    border: 2px solid #68a2a2;
+    background-color: #93ffff;
+    border-radius: 0.4rem;
+    margin-bottom: 1rem;   
 }

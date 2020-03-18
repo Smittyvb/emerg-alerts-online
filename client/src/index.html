@@ -7,9 +7,14 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
       integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
       crossorigin=""/>
+    <script>
+      window.ontouchstart = function() {}; // hack to get leaflet to think my touchscreen laptop
+                                           // a touchscreen, since Chrome handles it very weird
+    </script>
     <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
       integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
       crossorigin=""></script>
+    <script src="/leaflet-header-ext.js"></script>
     <link href="/main.css" rel="stylesheet">
     <script src="/elm.js"></script>
     <script>
@@ -24,6 +29,7 @@
           connectionStatus = n;
         }
       }
+      let pendingMapData = null;
       class WorldMap extends HTMLElement {
         connectedCallback() {
           console.log("<world-map> created");
@@ -40,14 +46,19 @@
           */
           let map = L.map(this).setView([ 64.35893097894458, -105.38085937500001 ], 3);
           // todo: license compliance
-          L.tileLayer("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+          L.tileLayer("https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png", {
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://foundation.wikimedia.org/w/index.php?title=Maps_Terms_of_Use#Where_does_the_map_data_come_from.3F">Wikimedia foundation</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC-BY</a>',
             maxZoom: 18,
+            touchZoom: true,
             //tileSize: 512,
             //zoomOffset: -1,
-          }).addTo(map);
+          }, [{
+            header: "x-requested-with",
+            value: "AlertDisplayer/1.0.0 (contact User:SixTwoEight or alertdisplayer-contact@speakscribe.com if something is going wrong) at " + location.hostname
+          }]).addTo(map);
           this._sources = [];
           this._map = map;
+          if (pendingMapData) this.setPolygons(pendingMapData);
         }
         setPolygons(alerts) {
           console.log("Updating map polygons");
@@ -55,7 +66,7 @@
             this._map.removeLayer(source);
           });
           this._sources = [];
-          alerts.forEach(([id, areas]) => {
+          alerts.forEach(([id, areas, popupHtml]) => {
             this._sources.push(id);
             let gj = {
               type: "Feature",
@@ -73,10 +84,26 @@
             };
             let style = {
               color: "#ff7800",
-              weight: 5,
+              weight: 3,
               opacity: 0.65
             };
-            this._sources.push(L.geoJSON(gj, {style}).addTo(this._map));
+            this._sources.push(L.geoJSON(gj, {
+              style,
+              onEachFeature: (feature, layer) => {
+                layer.on({
+                  click: e => {
+                    console.log("clicked on " + id + ".");
+                    var popup = L.popup({
+                        minWidth: 100,
+                        maxWidth: 600,
+                      })
+                      .setLatLng(e.latlng)
+                      .setContent(popupHtml)
+                      .openOn(this._map);
+                  }
+                });
+              }
+            }).addTo(this._map));
             /*this._map.addLayer({
               id,
               type: "fill",
@@ -100,7 +127,6 @@
         function setMapData(ele, status) {
           ele.setPolygons(status);
         }
-        let pendingMapData = null;
         app.ports.updateMapPolygons.subscribe(status => {
           let mapEle = document.getElementsByTagName("world-map");
           if (mapEle[0]) {
