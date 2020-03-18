@@ -38,31 +38,37 @@ const PER_BACKEND_FUNCS = {
     checkIfAlertSigned: async function(alert) {
 
     },
-    oldAlertQueue: throttledQueue(4, 1500), // at most 4 requests every 1.5 seconds
-    fetchOldAlert: async function(ref, forceBackupServer = false) {
+    oldAlertQueue: throttledQueue(2, 1500), // at most 2 requests every 1.5 seconds
+    fetchOldAlert: async function(ref, forceBackupServer = false, isRawUrl = false) {
       // page 24 of the LMD guide
       // cap-pac@canada.ca,urn:oid:2.49.0.1.124.4280542342.2020,2020-03-06T14:32:38-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2271109197.2020,2020-03-06T14:33:38-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2825789534.2020,2020-03-06T14:32:34-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2654922216.2020,2020-03-06T14:32:27-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.1308899007.2020,2020-03-06T15:32:42-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.3622084484.2020,2020-03-06T15:33:17-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2302068752.2020,2020-03-06T15:33:42-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2627528432.2020,2020-03-06T15:34:17-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.1656974427.2020,2020-03-06T15:53:15-00:00 cap-pac@canada.ca,urn:oid:2.49.0.1.124.2963379165.2020,2020-03-06T15:53:24-00:00
       
-      let [sender, id, sent] = ref.split(",");
-      if (alerts[id]) {
-        // already have this alert
-        console.log("already have", id);
-        return [false, false];
-      }
-
-      let msAgoSent = Date.now() - new Date(sent);
-      if (msAgoSent > 86400000) { // 1 day
-        console.log("not fetching", id, "because it is too old")
-        return [false, false];
-      }
-
-
-      // yes, HTTP. SSL isn't supported.
-      const xmlFilename = PER_BACKEND_FUNCS.canada.normalizeArchivePortion(`${sent}I${id}`);
-      const url = `http://capcp${forceBackupServer ? 2 : 1}.naad-adna.pelmorex.com/${sent.split("T")[0]}/${xmlFilename}.xml`;
-      
       return await new Promise((resolve, reject) => {
         PER_BACKEND_FUNCS.canada.oldAlertQueue(async function () {
+          console.log("fetchOldAlert", ref, forceBackupServer, isRawUrl);
+          let url;
+          if (!isRawUrl) {
+            let [sender, id, sent] = ref.split(",");
+            if (alerts[id]) {
+              // already have this alert
+              console.log("already have", id);
+              return [false, false];
+            }
+
+            let msAgoSent = Date.now() - new Date(sent);
+            if (msAgoSent > 86400000) { // 1 day
+              console.log("not fetching", id, "because it is too old")
+              return [false, false];
+            }
+
+
+            // yes, HTTP. SSL isn't supported.
+            const xmlFilename = PER_BACKEND_FUNCS.canada.normalizeArchivePortion(`${sent}I${id}`);
+            url = `http://capcp${forceBackupServer ? 2 : 1}.naad-adna.pelmorex.com/${sent.split("T")[0]}/${xmlFilename}.xml`;          
+          } else {
+            url = ref;
+          }
+
           console.log("fetching", url);
           let text, json;
           try {
@@ -272,3 +278,16 @@ app.get("/api/:feedid/search", (req, res) => {
 });
 
 app.listen(8080, () => console.log("Server started"));
+
+// fetch old Canada alerts
+(async () => {
+  const now = new Date;
+  const dateStr = `${now.getFullYear()}-${now.getMonth().toString().padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
+  const url = `http://capcp1.naad-adna.pelmorex.com/${dateStr}/`;
+  const res = await fetch(url);
+  const text = await res.text();
+  const fileNames =
+    text.match(/href=\"(.*?)\"/g).map(a => a.match(/\"(.*)\"/)[1]).filter(x => x.length > 15);
+  const alertUrls = fileNames.map(x => `http://capcp1.naad-adna.pelmorex.com/${dateStr}/${x}`);
+  alertUrls.forEach(url => PER_BACKEND_FUNCS.canada.fetchOldAlert(url, false, true))
+})();
