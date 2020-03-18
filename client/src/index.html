@@ -4,14 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AlertReady viewer</title>
-    <link href="https://api.mapbox.com/mapbox-gl-js/v1.8.0/mapbox-gl.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
+      integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
+      crossorigin=""/>
+    <script src="https://unpkg.com/leaflet@1.6.0/dist/leaflet.js"
+      integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
+      crossorigin=""></script>
     <link href="/main.css" rel="stylesheet">
-    <script src="https://api.mapbox.com/mapbox-gl-js/v1.8.0/mapbox-gl.js"></script>
     <script src="/elm.js"></script>
     <script>
-      // should probably be some compile time constant
-      if (!navigator.onLine) alert("You are offline. This won't work right.")
-      mapboxgl.accessToken = 'pk.eyJ1Ijoic21pdG9wIiwiYSI6ImNrN3Qxa2thcjBseWgzZXFyNHltYmZoY3kifQ.wkK2XWkuwMoxB8-gvAl6jA';
+      //if (!navigator.onLine) alert("You are offline. This might not work right")
       function getLang() {
         return navigator.language.split("-")[0] + "-CA";
       }
@@ -25,7 +27,7 @@
       class WorldMap extends HTMLElement {
         connectedCallback() {
           console.log("<world-map> created");
-          let map = new mapboxgl.Map({
+          /*let map = new mapboxgl.Map({
             container: this,
             style: "mapbox://styles/smitop/ck7t6xcly0l2i1irwrgja99sp",
             center: [-105.42, 61.69],
@@ -35,45 +37,54 @@
           });
           map.addControl(new mapboxgl.FullscreenControl());
           map.addControl(new mapboxgl.NavigationControl());
+          */
+          let map = L.map(this).setView([ 64.35893097894458, -105.38085937500001 ], 3);
+          // todo: license compliance
+          L.tileLayer("https://a.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://www.mapbox.com/">Mapbox</a>',
+            maxZoom: 18,
+            //tileSize: 512,
+            //zoomOffset: -1,
+          }).addTo(map);
           this._sources = [];
           this._map = map;
         }
         setPolygons(alerts) {
           console.log("Updating map polygons");
           this._sources.forEach(source => {
-            this._map.removeSource(source);
             this._map.removeLayer(source);
           });
           this._sources = [];
           alerts.forEach(([id, areas]) => {
             this._sources.push(id);
-            this._map.addSource(id, {
-              type: "geojson",
-              data: {
-                type: "Feature",
-                geometry: {
-                  type: "Polygon",
-                  coordinates:
-                    [].concat.apply([], areas.map(data => 
-                      data.polygon.map(polygon =>
-                         polygon.split(" ")
-                          .map(x => x.split(","))
-                          .map(([lat, long]) => [parseFloat(long), parseFloat(lat)])
-                      )
-                    ))
-                }
+            let gj = {
+              type: "Feature",
+              geometry: {
+                type: "Polygon",
+                coordinates:
+                  [].concat.apply([], areas.map(data => 
+                    data.polygon.map(polygon =>
+                        polygon.split(" ")
+                        .map(x => x.split(","))
+                        .map(([lat, long]) => [parseFloat(long), parseFloat(lat)])
+                    )
+                  ))
               }
-            });
-            this._map.addLayer({
+            };
+            let style = {
+              color: "#ff7800",
+              weight: 5,
+              opacity: 0.65
+            };
+            this._sources.push(L.geoJSON(gj, {style}).addTo(this._map));
+            /*this._map.addLayer({
               id,
               type: "fill",
               source: id,
               layout: {},
-              paint: {
-                "fill-color": "#088",
-                "fill-opacity": 0.3333333333
-              }
-            })
+              color: "#088",
+              opacity: 0.3333333333
+            });*/
           });
         }
       }
