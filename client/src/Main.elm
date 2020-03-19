@@ -6,10 +6,14 @@ import DateFormat
 import DateFormat.Relative exposing (relativeTime)
 import Debug exposing (log)
 import Dict exposing (Dict)
+import Faq exposing (faqEle)
 import Html exposing (..)
-import Html.Attributes exposing (class, href, id, type_, style)
-import Html.Events exposing (onClick)
+import Html.Attributes exposing (checked, class, href, id, style, type_)
+import Html.Events exposing (onCheck, onClick)
 import Html.Lazy exposing (lazy, lazy2)
+import Html.String as HS
+import Html.String.Attributes as HSA
+import Html.String.Events as HSE
 import Json.Decode as D
 import Json.Decode.Pipeline exposing (hardcoded, required, requiredAt)
 import List
@@ -17,10 +21,6 @@ import Task
 import Time
 import Url
 import Url.Parser as Parser exposing ((</>), Parser, map, oneOf, s, top)
-import Faq exposing (faqEle)
-import Html.String as HS
-import Html.String.Attributes as HSA
-import Html.String.Events as HSE
 
 
 
@@ -33,21 +33,23 @@ port updateAlerts : (D.Value -> msg) -> Sub msg
 port updateConnectionStatus : (String -> msg) -> Sub msg
 
 
+
 -- port updateMapData : (List (String, List String) -> msg) -> Sub msg
 
 
-port updateMapPolygons : (List 
-    ( String
-    , List
-        { areaDesc : String
-        , polygon : List String
-        , circle : List String
-        , altitude : Maybe Int
-        , ceiling : Maybe Int
-        }
-    , String
-    )
-    ) -> Cmd msg
+port updateMapPolygons :
+    List
+        ( String
+        , List
+            { areaDesc : String
+            , polygon : List String
+            , circle : List String
+            , altitude : Maybe Int
+            , ceiling : Maybe Int
+            }
+        , String
+        )
+    -> Cmd msg
 
 
 type alias FlagData =
@@ -716,7 +718,6 @@ alertAreaDecoder =
         |> required "altitude" (D.nullable D.int)
         |> required "ceiling" (D.nullable D.int)
 
-        
 
 alertInfoDecoder : D.Decoder AlertInfo
 alertInfoDecoder =
@@ -808,7 +809,8 @@ type Msg
     | TimeZone Time.Zone
     | Tick Time.Posix
     | UpdateLanguage String
-    | ToggleOnlyCurrent
+    | SetOnlyCurrent Bool
+    | SetStatusFilter MsgStatus Bool
 
 
 genSearchUrl : String -> String
@@ -836,9 +838,10 @@ update msg model =
 
         UrlChanged url ->
             if url.path == "/map" then
-                ({ model | url = url, mapEverShown = True }, Cmd.none)
-            else 
-                ({ model | url = url }, Cmd.none)
+                ( { model | url = url, mapEverShown = True }, Cmd.none )
+
+            else
+                ( { model | url = url }, Cmd.none )
 
         UpdateAlerts newAlerts ->
             let
@@ -857,24 +860,35 @@ update msg model =
                         ]
             in
             ( { model | alerts = newAlertsList }
-            , updateMapPolygons <| List.filterMap (\x -> case x of
-                InvalidAlert _ ->
-                    Nothing
+            , updateMapPolygons <|
+                List.filterMap
+                    (\x ->
+                        case x of
+                            InvalidAlert _ ->
+                                Nothing
 
-                SomeAlert a ->
-                    case List.head a.infos of
-                        Just h ->
-                            Just (a.id, List.map (\area ->
-                                { areaDesc = area.areaDesc
-                                , polygon = area.polygon
-                                , circle = area.circle
-                                , altitude = area.altitude
-                                , ceiling = area.ceiling
-                                }
-                            ) h.areas, HS.toString 0 <| alertDiv a model.language model.timeZone model.time)
-                        Nothing ->
-                            Nothing
-                ) newAlertsList
+                            SomeAlert a ->
+                                case List.head a.infos of
+                                    Just h ->
+                                        Just
+                                            ( a.id
+                                            , List.map
+                                                (\area ->
+                                                    { areaDesc = area.areaDesc
+                                                    , polygon = area.polygon
+                                                    , circle = area.circle
+                                                    , altitude = area.altitude
+                                                    , ceiling = area.ceiling
+                                                    }
+                                                )
+                                                h.areas
+                                            , HS.toString 0 <| alertDiv a model.language model.timeZone model.time
+                                            )
+
+                                    Nothing ->
+                                        Nothing
+                    )
+                    newAlertsList
             )
 
         UpdateConnectionStatus newStatus ->
@@ -913,12 +927,30 @@ update msg model =
             , Cmd.none
             )
 
-        ToggleOnlyCurrent ->
+        SetOnlyCurrent x ->
             let
-                fO = model.filterOptions
+                fO =
+                    model.filterOptions
             in
-                ( { model | filterOptions = { fO | onlyCurrent = not fO.onlyCurrent} }
-                , Cmd.none)
+            ( { model | filterOptions = { fO | onlyCurrent = x } }
+            , Cmd.none
+            )
+
+        SetStatusFilter status x ->
+            let
+                fO =
+                    model.filterOptions
+
+                newStatuses =
+                    if x then
+                        status :: fO.statuses
+
+                    else
+                        List.filter (\o -> o /= status) fO.statuses
+            in
+            ( { model | filterOptions = { fO | statuses = newStatuses } }
+            , Cmd.none
+            )
 
 
 
@@ -943,6 +975,7 @@ headerEle status lastUpdate =
             ]
         , viewLink "Map" "/map"
         , viewLink "FAQ" "/faq"
+
         --, viewLink "About" "/about"
         , connectionStatusEle status
         ]
@@ -1055,28 +1088,35 @@ alertKeyRaw content name =
         normalizedName =
             String.replace " " "-" lowerName
     in
-        HS.div [ HSA.class <| "alert-" ++ normalizedName ] [ HS.span [ HSA.class "alert-label" ] [ HS.text <| name ++ ": " ], content ]
+    HS.div [ HSA.class <| "alert-" ++ normalizedName ] [ HS.span [ HSA.class "alert-label" ] [ HS.text <| name ++ ": " ], content ]
 
 
 alertKey : Maybe String -> String -> HS.Html Msg
 alertKey key name =
     case key of
-        Nothing -> HS.span [] []
-        Just "" -> HS.span [] []
+        Nothing ->
+            HS.span [] []
+
+        Just "" ->
+            HS.span [] []
+
         Just x ->
             alertKeyRaw
                 (if String.left 4 x == "http" then
                     HS.a [ HSA.href x, HSA.target "_blank" ] [ HS.text x ]
 
-                else
-                    HS.text x)
+                 else
+                    HS.text x
+                )
                 name
 
 
 alertKeyDate : Time.Zone -> Time.Posix -> Maybe Int -> String -> HS.Html Msg
 alertKeyDate zone now time name =
     case time of
-        Nothing -> HS.span [] []
+        Nothing ->
+            HS.span [] []
+
         Just x ->
             alertKeyRaw (dateEle zone x now) name
 
@@ -1084,49 +1124,51 @@ alertKeyDate zone now time name =
 alertDiv : Alert -> String -> Time.Zone -> Time.Posix -> HS.Html Msg
 alertDiv alert lang zone now =
     let
-        date = alertKeyDate zone now
+        date =
+            alertKeyDate zone now
     in
-        HS.div [ HSA.class "alert" ]
-            [ case alertInfoForLang alert lang of
-                Just info ->
-                    HS.div []
-                        [ HS.h3 [ HSA.class "alert-title" ] [ HS.text <| alertTitle info ]
-                        , langSelector alert.infos
-                        , HS.div
-                            [ HSA.class "alert-sender" ]
-                            [ HS.text "Sent "
-                            , dateEle zone alert.sent now
-                            , HS.text <| " by " ++ alert.sender
-                            ]
-                        , date info.expires "Expires"
-                        , alertKey (Just (stringifyMsgScope alert.scope)) "Scope"
-                        , alertKey (Just (stringifyAlertInfoCategory info.category)) "Category"
-                        , alertKey (Maybe.map stringifyAlertInfoResponseType info.responseType) "Response type"
-                        , alertKey (Just (stringifyAlertInfoCertainty info.certainty)) "Certainty"
-                        , alertKey (Just (stringifyAlertInfoSeverity info.severity)) "Severity"
-                        , alertKey info.instruction "Instructions"
-                        , alertKey info.description "Description"
-                        , alertKey info.contact "Contact"
-                        , alertKey alert.source "Source"
-                        , alertKey info.web "Website"
-                        , alertKey info.audience "Audience"
-                        , alertKey info.contact "Contact"
-                        --, alertKey alert.type (Maybe.map )
+    HS.div [ HSA.class "alert" ]
+        [ case alertInfoForLang alert lang of
+            Just info ->
+                HS.div []
+                    [ HS.h3 [ HSA.class "alert-title" ] [ HS.text <| alertTitle info ]
+                    , langSelector alert.infos
+                    , HS.div
+                        [ HSA.class "alert-sender" ]
+                        [ HS.text "Sent "
+                        , dateEle zone alert.sent now
+                        , HS.text <| " by " ++ alert.sender
                         ]
+                    , date info.expires "Expires"
+                    , alertKey (Just (stringifyMsgScope alert.scope)) "Scope"
+                    , alertKey (Just (stringifyAlertInfoCategory info.category)) "Category"
+                    , alertKey (Maybe.map stringifyAlertInfoResponseType info.responseType) "Response type"
+                    , alertKey (Just (stringifyAlertInfoCertainty info.certainty)) "Certainty"
+                    , alertKey (Just (stringifyAlertInfoSeverity info.severity)) "Severity"
+                    , alertKey info.instruction "Instructions"
+                    , alertKey info.description "Description"
+                    , alertKey info.contact "Contact"
+                    , alertKey alert.source "Source"
+                    , alertKey info.web "Website"
+                    , alertKey info.audience "Audience"
+                    , alertKey info.contact "Contact"
 
-                Nothing ->
-                    HS.div [ HSA.class "no-lang-data" ]
-                        [ langSelector alert.infos
-                        , case List.head alert.infos of
-                            Just _ ->
-                                HS.text <| "There is no data for this alert in " ++ lang ++ "."
+                    --, alertKey alert.type (Maybe.map )
+                    ]
 
-                            Nothing ->
-                                HS.text <|
-                                    "There is no data for this alert in "
-                                        ++ lang
-                                        ++ ", or any other language."
-                        ]
+            Nothing ->
+                HS.div [ HSA.class "no-lang-data" ]
+                    [ langSelector alert.infos
+                    , case List.head alert.infos of
+                        Just _ ->
+                            HS.text <| "There is no data for this alert in " ++ lang ++ "."
+
+                        Nothing ->
+                            HS.text <|
+                                "There is no data for this alert in "
+                                    ++ lang
+                                    ++ ", or any other language."
+                    ]
         ]
 
 
@@ -1168,98 +1210,121 @@ connectionStatusEle status =
         ]
 
 
-checkbox : msg -> String -> Html msg
-checkbox msg name =
+checkbox : Bool -> (Bool -> msg) -> String -> Html msg
+checkbox setChecked msg name =
     label []
-    [ input [ type_ "checkbox", onClick msg ] []
-    , text name
-    ]
+        [ input [ type_ "checkbox", onCheck (\x -> msg True), checked setChecked ] []
+        , text name
+        ]
 
 
 filterWidget : FilterOptions -> Html Msg
 filterWidget filterOptions =
     div [ class "filter-widget" ]
-    [ checkbox ToggleOnlyCurrent "Hide cancelled and expired alerts"
-    ]
+        [ checkbox filterOptions.onlyCurrent SetOnlyCurrent "Show cancelled/expired alerts"
+        ]
 
 
 shouldFilterOutAlert : FilterOptions -> Time.Posix -> Alert -> Bool
 shouldFilterOutAlert fO now a =
     let
-        isCurrent =
+        currentCheck =
             case List.head a.infos of
                 Just i ->
                     case i.expires of
                         Just x ->
-                            (Time.posixToMillis now) > x
-                        
+                            Time.posixToMillis now > x
+
                         Nothing ->
                             False
+
                 Nothing ->
                     False
+
+        statusCheck =
+            not <| List.any (\s -> a.status == s) fO.statuses
     in
-        isCurrent
+    currentCheck || statusCheck
+
 
 view : Model -> Browser.Document Msg
 view model =
     let
-        routedUrl = Parser.parse route model.url
-        onMapPage = case routedUrl of
-            Just Map ->
-                True
-            _ ->
-                False
+        routedUrl =
+            Parser.parse route model.url
+
+        onMapPage =
+            case routedUrl of
+                Just Map ->
+                    True
+
+                _ ->
+                    False
     in
-        { title = "AlertReady viewer"
-        , body =
-            [ div [ class "elm-root" ]
-                [ lazy2 headerEle model.connectionStatus model.lastUpdate
-                , 
-                    if model.mapEverShown then
-                        node "world-map"
-                            [ style "display" (if onMapPage then "block" else "none")
-                            , id "alert-map"
+    { title = "AlertReady viewer"
+    , body =
+        [ div [ class "elm-root" ]
+            [ lazy2 headerEle model.connectionStatus model.lastUpdate
+            , if model.mapEverShown then
+                node "world-map"
+                    [ style "display"
+                        (if onMapPage then
+                            "block"
+
+                         else
+                            "none"
+                        )
+                    , id "alert-map"
+                    ]
+                    []
+
+              else
+                span [] []
+            , div [ id "content" ]
+                (case routedUrl of
+                    Just About ->
+                        [ subheader "About" ]
+
+                    Just Faq ->
+                        [ subheader "FAQ", faqEle ]
+
+                    Just Map ->
+                        []
+
+                    Just (Search _) ->
+                        List.concat
+                            [ [ lazy filterWidget model.filterOptions ]
+                            , if List.length model.alerts == 0 then
+                                [ div [ class "no-alerts" ] [ text "No alerts found." ] ]
+
+                              else
+                                model.alerts
+                                    |> List.sortBy
+                                        (\a ->
+                                            case a of
+                                                SomeAlert alert ->
+                                                    -alert.sent
+
+                                                InvalidAlert _ ->
+                                                    round (1 / 0)
+                                         -- hack to get negative infinity
+                                        )
+                                    |> List.filter
+                                        (\mA ->
+                                            case mA of
+                                                SomeAlert a ->
+                                                    shouldFilterOutAlert model.filterOptions model.time a
+                                                        |> not
+
+                                                InvalidAlert _ ->
+                                                    True
+                                        )
+                                    |> List.map (genAlertHtml model.language model.timeZone model.time)
                             ]
-                            []
-                    else
-                        span [] []
 
-                , div [ id "content" ]
-                    (case routedUrl of
-                        Just About ->
-                            [ subheader "About" ]
-
-                        Just Faq ->
-                            [ subheader "FAQ", faqEle ]
-
-                        Just Map ->
-                            []
-
-                        Just (Search _) ->
-                            List.concat
-                                [
-                                    [ lazy filterWidget model.filterOptions ]
-                                , if List.length model.alerts == 0 then
-                                    [ div [ class "no-alerts" ] [ text "No alerts found." ] ]
-
-                                else
-                                    model.alerts
-                                        |> List.sortBy
-                                            (\a ->
-                                                case a of
-                                                    SomeAlert alert ->
-                                                        -alert.sent
-
-                                                    InvalidAlert _ ->
-                                                        round (1 / 0)
-                                            -- hack to get negative infinity
-                                            )
-                                        |> List.map (genAlertHtml model.language model.timeZone model.time)
-                                ]
-
-                        Nothing ->
-                            [ subheader "Not found" ]
-                    )
-                ]
+                    Nothing ->
+                        [ subheader "Not found" ]
+                )
             ]
-        }
+        ]
+    }
