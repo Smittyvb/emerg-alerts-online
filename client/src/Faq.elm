@@ -22,8 +22,10 @@ faqEle = div
         ]
     , qa "How does the map work?"
         [ text "I'm using "
-        , a [ href "https://mapbox.com" ] [ text "Mapbox" ]
-        , text " to handle map display. Most of Mapbox's map data comes from"
+        , a [ href "http://leafletjs.com/" ] [ text "Leaflet" ]
+        , text " to handle map display. Map tiles are from "
+        , a [ href "TODO" ] [ text "Wikimedia Maps" ]
+        , text ", which in turn gets it's underlying mapping data from "
         , a [ href "https://www.openstreetmap.org/" ] [ text "OpenStreetMap" ]
         , text "."
         ]
