@@ -793,7 +793,7 @@ init flags url key =
       , mapEverShown = url.path == "/map"
       , filterOptions =
             { statuses = [ Actual, Exercise ]
-            , onlyCurrent = True
+            , onlyCurrent = False
             }
       }
     , Task.perform TimeZone Time.here
@@ -1212,17 +1212,28 @@ connectionStatusEle status =
 
 checkbox : Bool -> (Bool -> msg) -> String -> Html msg
 checkbox setChecked msg name =
-    label []
-        [ input [ type_ "checkbox", onCheck (\x -> msg True), checked setChecked ] []
+    div []
+    [ label []
+        [ input [ type_ "checkbox", onCheck (\x -> msg x), checked setChecked ] []
         , text name
         ]
+    ]
 
 
 filterWidget : FilterOptions -> Html Msg
 filterWidget filterOptions =
-    div [ class "filter-widget" ]
-        [ checkbox filterOptions.onlyCurrent SetOnlyCurrent "Show cancelled/expired alerts"
-        ]
+    let
+        sCb : MsgStatus -> String -> Html Msg
+        sCb s n = checkbox (List.any (\x -> x == s) filterOptions.statuses) (SetStatusFilter s) n
+    in
+        div [ class "filter-widget" ]
+            [ checkbox filterOptions.onlyCurrent SetOnlyCurrent "Show cancelled/expired alerts"
+            , sCb Actual "Show actual alerts"
+            , sCb Exercise "Show exercise alerts"
+            , sCb System "Show internal system alerts"
+            , sCb Test "Show test alerts not intended for distribution to the public"
+            , sCb Draft "Show draft alerts not intended for distribution to the public"
+            ]
 
 
 shouldFilterOutAlert : FilterOptions -> Time.Posix -> Alert -> Bool
