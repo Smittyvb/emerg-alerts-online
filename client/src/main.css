@@ -103,6 +103,8 @@ world-map {
 }
 .leaflet-container a.leaflet-popup-close-button {
     color: #046969;
+    margin-top: 1rem;
+    margin-right: 0.2rem;
 }
 .leaflet-popup-tip {
     background: #93ffff;
