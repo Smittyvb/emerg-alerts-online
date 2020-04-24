@@ -4,6 +4,7 @@ const net            = require("net");
 const xml2js         = require("xml2js");
 const throttledQueue = require("throttled-queue");
 const util           = require("util");
+const fs             = require("fs");
 
 const USER_AGENT = "online-emerg-alert-fetcher/0.1";
 const TCP_API_SERVERS = {
@@ -205,6 +206,10 @@ function gotAlert(alert, rawXml, id, source, serverId) {
       con.res.socket.write("\n\ndata: " + JSON.stringify([alerts[id]]) + "\n\n")
     });
   }
+  let data = JSON.stringify(alerts[id]);
+  fs.writeFile(`${__dirname}/saved_alerts/${id}.json`, data, () => {
+    console.log("Sucessfully wrote", id, "to disk");
+  });
 }
 
 Object.keys(TCP_API_SERVERS).forEach(key => {
@@ -289,5 +294,14 @@ app.listen(8080, () => console.log("Server started"));
   const fileNames =
     text.match(/href=\"(.*?)\"/g).map(a => a.match(/\"(.*)\"/)[1]).filter(x => x.length > 15);
   const alertUrls = fileNames.map(x => `http://capcp1.naad-adna.pelmorex.com/${dateStr}/${x}`);
-  alertUrls.forEach(url => PER_BACKEND_FUNCS.canada.fetchOldAlert(url, false, true))
+  alertUrls.forEach(url => PER_BACKEND_FUNCS.canada.fetchOldAlert(url, false, true));
+  const savedAlertsFilenames = fs.readdirSync(`${__dirname}/saved_alerts`);
+  savedAlertsFilenames.forEach(filename => {
+    if (filename === ".gitkeep") return;
+    console.log("Loading saved alert", filename);
+    const file = fs.readFileSync(`${__dirname}/saved_alerts/${filename}`, "utf-8");
+    const fileJson = JSON.parse(file);
+    const id = fileJson.alert.id;
+    alerts[id] = fileJson;
+  });
 })();

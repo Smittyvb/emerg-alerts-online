@@ -2,3 +2,5 @@ client/elm-stuff
 client/index.html
 client/src/elm.js
 server/node_modules
+server/saved_alerts
+!server/saved_alerts/.gitkeep
