@@ -15,6 +15,10 @@
       integrity="sha512-gZwIG9x3wUXg2hdXF6+rVkLF/0Vi9U8D2Ntg4Ga5I5BZpVkVxlJWbSQtXPSiUTtC0TjtGOmxa1AJPuV0CPthew=="
       crossorigin=""></script>
     <script src="/leaflet-header-ext.js"></script>
+    <!-- Mapbox GL -->
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.5.0/mapbox-gl.css' rel='stylesheet' />
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.5.0/mapbox-gl.js'></script>
+    <script src="https://unpkg.com/mapbox-gl-leaflet/leaflet-mapbox-gl.js"></script>
     <link href="/main.css" rel="stylesheet">
     <script src="/elm.js"></script>
     <script>
@@ -45,17 +49,21 @@
           map.addControl(new mapboxgl.NavigationControl());
           */
           let map = L.map(this).setView([ 64.35893097894458, -105.38085937500001 ], 3);
-          // todo: license compliance
-          L.tileLayer("https://maps.wikimedia.org/osm-intl/{z}/{x}/{y}.png", {
-            attribution: 'Map data &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors, <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, Imagery © <a href="https://foundation.wikimedia.org/w/index.php?title=Maps_Terms_of_Use#Where_does_the_map_data_come_from.3F">Wikimedia foundation</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC-BY</a>',
-            maxZoom: 18,
-            touchZoom: true,
-            //tileSize: 512,
-            //zoomOffset: -1,
-          }, [{
-            header: "x-requested-with",
-            value: "AlertDisplayer/1.0.0 (contact User:SixTwoEight or alertdisplayer-contact@speakscribe.com if something is going wrong) at " + location.hostname
-          }]).addTo(map);
+          // L.tileLayer("https://api.mapbox.com/styles/v1/mapbox/{id}/tiles/{z}/{x}/{y}?access_token=pk.eyJ1Ijoic21pdG9wIiwiYSI6ImNrN3Qxa2thcjBseWgzZXFyNHltYmZoY3kifQ.wkK2XWkuwMoxB8-gvAl6jA", {
+          //   attribution: '© <a href="https://www.mapbox.com/map-feedback/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          //   maxZoom: 18,
+          //   touchZoom: true,
+          //   id: 'mapbox/streets-v11',
+          //   tileSize: 512,
+          //   zoomOffset: -1,
+          // }, [{
+          //   header: "x-requested-with",
+          //   value: "AlertDisplayer/1.0.0 (contact User:SixTwoEight or alertdisplayer-contact@speakscribe.com if something is going wrong) at " + location.hostname
+          // }]).addTo(map);
+          L.mapboxGL({
+            accessToken: "pk.eyJ1Ijoic21pdG9wIiwiYSI6ImNrN3Qxa2thcjBseWgzZXFyNHltYmZoY3kifQ.wkK2XWkuwMoxB8-gvAl6jA",
+            style: "mapbox://styles/smitop/ck7t6xcly0l2i1irwrgja99sp"
+          }).addTo(map);
           this._sources = [];
           this._map = map;
           if (pendingMapData) this.setPolygons(pendingMapData);
