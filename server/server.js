@@ -97,7 +97,6 @@ function parseKeyvalArray(arr) {
 }
 
 function parseAlertJson(alert) {
-  //console.log("pAJ", alert);
   return {
     id: alert.identifier[0],
     sender: alert.sender[0],
